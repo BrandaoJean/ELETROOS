@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Print CSS Stylesheet */
+@media print {
+  /* Set background to white and color to black */
+  html, body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Hide navigation controls, sidebars, header bar, buttons, filters */
+  aside, 
+  nav, 
+  button, 
+  header, 
+  select, 
+  input, 
+  .print\:hidden,
+  .print-hidden,
+  #modal-pagamento > div:first-child,
+  div.bg-slate-900.text-white.px-5.py-3.5 {
+    display: none !important;
+  }
+
+  /* Reset layout wrappers to block and expand fully */
+  .fixed, 
+  .absolute, 
+  .relative {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Optimize modal backdrop and layouts */
+  .fixed.inset-0 {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Remove scrollbars and fix container sizing */
+  .max-h-\[90vh\], .overflow-y-auto {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Remove standard box shadows, borders and visual noises */
+  .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl {
+    box-shadow: none !important;
+  }
+
+  .border, .border-slate-200, .border-slate-100 {
+    border-color: #ccc !important;
+  }
+
+  /* Specifically isolate the print preview container */
+  #print-area {
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    display: block !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+
+  /* Support receipt invoice container inside success screen */
+  #recibo-sucesso {
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    display: block !important;
+  }
+
+  #recibo-sucesso > div:first-child, 
+  #recibo-sucesso > div:nth-child(2), 
+  #recibo-sucesso > div:last-child,
+  #recibo-sucesso > div.grid {
+    display: none !important;
+  }
+
+  #recibo-sucesso > div.bg-slate-50 {
+    border: 1px dashed #333 !important;
+    background: #fff !important;
+    padding: 20px !important;
+    margin: 20px auto !important;
+    width: 80% !important;
+    max-width: 450px !important;
+    display: block !important;
+  }
+}

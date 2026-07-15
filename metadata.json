@@ -1,0 +1,6 @@
+{
+  "name": "EletroOS - Gestão e Orçamentos",
+  "description": "Sistema completo para gerenciamento de ordens de serviço, orçamentos, faturamento MEI, pagamentos múltiplos (PIX, Cartão, Carteira), conciliação bancária e controle financeiro para assistências técnicas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
