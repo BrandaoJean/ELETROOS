@@ -48,12 +48,72 @@ export default function ClientDirectoryView({
   const [cpf, setCpf] = useState('');
   const [initialBalance, setInitialBalance] = useState('0');
 
+  // New Client Address states
+  const [cep, setCep] = useState('');
+  const [address, setAddress] = useState('');
+  const [number, setNumber] = useState('');
+  const [complement, setComplement] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [isFetchingCep, setIsFetchingCep] = useState(false);
+
   // Edit Client Form states
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editCpf, setEditCpf] = useState('');
+
+  // Edit Client Address states
+  const [editCep, setEditCep] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editNumber, setEditNumber] = useState('');
+  const [editComplement, setEditComplement] = useState('');
+  const [editNeighborhood, setEditNeighborhood] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editState, setEditState] = useState('');
+  const [isFetchingEditCep, setIsFetchingEditCep] = useState(false);
+
+  const fetchAddressByCep = async (zipCode: string, isEdit: boolean) => {
+    const cleanCep = zipCode.replace(/\D/g, '');
+    if (cleanCep.length !== 8) return;
+
+    if (isEdit) {
+      setIsFetchingEditCep(true);
+    } else {
+      setIsFetchingCep(true);
+    }
+
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      if (data && !data.erro) {
+        if (isEdit) {
+          setEditAddress(data.logradouro || '');
+          setEditNeighborhood(data.bairro || '');
+          setEditCity(data.localidade || '');
+          setEditState(data.uf || '');
+        } else {
+          setAddress(data.logradouro || '');
+          setNeighborhood(data.bairro || '');
+          setCity(data.localidade || '');
+          setState(data.uf || '');
+        }
+      } else {
+        alert('CEP não encontrado. Por favor, preencha o endereço manualmente.');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar CEP:', error);
+      alert('Não foi possível conectar para buscar o CEP. Digite o endereço manualmente.');
+    } finally {
+      if (isEdit) {
+        setIsFetchingEditCep(false);
+      } else {
+        setIsFetchingCep(false);
+      }
+    }
+  };
 
   // Selected client for history inspect
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -88,6 +148,13 @@ export default function ClientDirectoryView({
     setEditPhone(activeClient.phone);
     setEditEmail(activeClient.email || '');
     setEditCpf(activeClient.cpf);
+    setEditCep(activeClient.cep || '');
+    setEditAddress(activeClient.address || '');
+    setEditNumber(activeClient.number || '');
+    setEditComplement(activeClient.complement || '');
+    setEditNeighborhood(activeClient.neighborhood || '');
+    setEditCity(activeClient.city || '');
+    setEditState(activeClient.state || '');
     setIsEditOpen(true);
   };
 
@@ -101,7 +168,14 @@ export default function ClientDirectoryView({
       name: editName,
       phone: editPhone,
       email: editEmail,
-      cpf: editCpf
+      cpf: editCpf,
+      cep: editCep,
+      address: editAddress,
+      number: editNumber,
+      complement: editComplement,
+      neighborhood: editNeighborhood,
+      city: editCity,
+      state: editState
     });
     setIsEditOpen(false);
   };
@@ -125,7 +199,14 @@ export default function ClientDirectoryView({
       phone,
       email,
       cpf,
-      walletBalance: parseFloat(initialBalance) || 0
+      walletBalance: parseFloat(initialBalance) || 0,
+      cep,
+      address,
+      number,
+      complement,
+      neighborhood,
+      city,
+      state
     });
 
     // Reset
@@ -135,6 +216,13 @@ export default function ClientDirectoryView({
     setEmail('');
     setCpf('');
     setInitialBalance('0');
+    setCep('');
+    setAddress('');
+    setNumber('');
+    setComplement('');
+    setNeighborhood('');
+    setCity('');
+    setState('');
   };
 
   return (
@@ -284,6 +372,26 @@ export default function ClientDirectoryView({
                     {formatBRL(activeClient.walletBalance)}
                   </p>
                 </div>
+              </div>
+
+              {/* Address detail banner */}
+              <div className="px-4 py-2 bg-indigo-50/40 border-b border-indigo-100 text-xs text-slate-700">
+                <p className="font-bold text-[9px] uppercase tracking-wider text-indigo-700 mb-0.5 flex items-center gap-1">
+                  📍 Endereço de Ficha
+                </p>
+                {activeClient.address ? (
+                  <div className="leading-relaxed">
+                    <p className="font-bold text-slate-800">{activeClient.address}, {activeClient.number || 'S/N'}</p>
+                    {activeClient.complement && <p className="text-[11px] text-slate-500 font-medium">{activeClient.complement}</p>}
+                    <p className="text-[11px] text-slate-600 font-medium">
+                      {activeClient.neighborhood && `${activeClient.neighborhood} - `}
+                      {activeClient.city}/{activeClient.state}
+                    </p>
+                    <p className="font-mono text-[9px] text-slate-400 font-bold">CEP: {activeClient.cep}</p>
+                  </div>
+                ) : (
+                  <p className="text-slate-400 italic text-[10px]">Nenhum endereço cadastrado para este cliente.</p>
+                )}
               </div>
 
               {/* Repair list */}
@@ -458,6 +566,115 @@ export default function ClientDirectoryView({
                 />
               </div>
 
+              {/* Address section */}
+              <div className="border-t border-slate-100 pt-3 mt-3 space-y-3">
+                <h4 className="font-bold text-slate-500 uppercase text-[10px] tracking-wider">Endereço do Cliente</h4>
+                
+                <div className="grid grid-cols-3 gap-3 items-end">
+                  <div className="col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">CEP (Busca automática):</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Ex: 01001-000"
+                        value={cep}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCep(val);
+                          const clean = val.replace(/\D/g, '');
+                          if (clean.length === 8) {
+                            fetchAddressByCep(clean, false);
+                          }
+                        }}
+                        className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs font-semibold"
+                      />
+                      {isFetchingCep && (
+                        <span className="absolute right-3 top-2.5 text-[10px] text-indigo-600 font-bold animate-pulse">Buscando...</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => fetchAddressByCep(cep, false)}
+                      className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-lg font-bold border border-slate-300 transition-colors cursor-pointer text-center text-xs"
+                    >
+                      Buscar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">Rua / Logradouro:</label>
+                    <input
+                      type="text"
+                      placeholder="Nome da rua"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Número:</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: 123"
+                      value={number}
+                      onChange={(e) => setNumber(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Bairro:</label>
+                    <input
+                      type="text"
+                      placeholder="Bairro"
+                      value={neighborhood}
+                      onChange={(e) => setNeighborhood(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Complemento:</label>
+                    <input
+                      type="text"
+                      placeholder="Apto, Bloco, etc."
+                      value={complement}
+                      onChange={(e) => setComplement(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">Cidade:</label>
+                    <input
+                      type="text"
+                      placeholder="Cidade"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Estado (UF):</label>
+                    <input
+                      type="text"
+                      placeholder="SP"
+                      maxLength={2}
+                      value={state}
+                      onChange={(e) => setState(e.target.value.toUpperCase())}
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs text-center font-semibold"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -543,6 +760,115 @@ export default function ClientDirectoryView({
                   onChange={(e) => setEditEmail(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium text-slate-800"
                 />
+              </div>
+
+              {/* Address section for Edit */}
+              <div className="border-t border-slate-100 pt-3 mt-3 space-y-3">
+                <h4 className="font-bold text-slate-500 uppercase text-[10px] tracking-wider">Endereço do Cliente</h4>
+                
+                <div className="grid grid-cols-3 gap-3 items-end">
+                  <div className="col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">CEP (Busca automática):</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Ex: 01001-000"
+                        value={editCep}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditCep(val);
+                          const clean = val.replace(/\D/g, '');
+                          if (clean.length === 8) {
+                            fetchAddressByCep(clean, true);
+                          }
+                        }}
+                        className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs font-semibold text-slate-850"
+                      />
+                      {isFetchingEditCep && (
+                        <span className="absolute right-3 top-2.5 text-[10px] text-indigo-600 font-bold animate-pulse">Buscando...</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => fetchAddressByCep(editCep, true)}
+                      className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-lg font-bold border border-slate-300 transition-colors cursor-pointer text-center text-xs"
+                    >
+                      Buscar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">Rua / Logradouro:</label>
+                    <input
+                      type="text"
+                      placeholder="Nome da rua"
+                      value={editAddress}
+                      onChange={(e) => setEditAddress(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs font-semibold text-slate-850"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Número:</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: 123"
+                      value={editNumber}
+                      onChange={(e) => setEditNumber(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs font-semibold text-slate-850"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Bairro:</label>
+                    <input
+                      type="text"
+                      placeholder="Bairro"
+                      value={editNeighborhood}
+                      onChange={(e) => setEditNeighborhood(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs font-semibold text-slate-850"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Complemento:</label>
+                    <input
+                      type="text"
+                      placeholder="Apto, Bloco, etc."
+                      value={editComplement}
+                      onChange={(e) => setEditComplement(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs font-semibold text-slate-850"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">Cidade:</label>
+                    <input
+                      type="text"
+                      placeholder="Cidade"
+                      value={editCity}
+                      onChange={(e) => setEditCity(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs font-semibold text-slate-850"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Estado (UF):</label>
+                    <input
+                      type="text"
+                      placeholder="SP"
+                      maxLength={2}
+                      value={editState}
+                      onChange={(e) => setEditState(e.target.value.toUpperCase())}
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs text-center font-semibold text-slate-850"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

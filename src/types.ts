@@ -38,6 +38,8 @@ export interface ServiceOrder {
   model: string;
   serialNumber: string;
   reportedProblem: string;
+  physicalCondition?: string; // damages, scratches, physical state
+  observations?: string; // general observations
   technicalReport: string;
   parts: PartItem[];
   laborCost: number;
@@ -59,6 +61,13 @@ export interface Client {
   email: string;
   cpf: string;
   walletBalance: number;
+  cep?: string;
+  address?: string; // street / logradouro
+  number?: string;
+  complement?: string;
+  neighborhood?: string; // bairro
+  city?: string;
+  state?: string; // UF / estado
   createdAt: string;
 }
 

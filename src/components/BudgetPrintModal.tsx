@@ -175,9 +175,20 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
                 <p className="text-slate-500 text-[10px] truncate">{client?.email || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-[9px] uppercase font-bold text-slate-400">Endereço da Ficha</p>
-                <p className="text-slate-600 mt-0.5 font-medium">Cadastro regularizado</p>
-                <p className="text-slate-400 text-[9px] italic">Registrado na base de dados</p>
+                <p className="text-[9px] uppercase font-bold text-slate-400">Endereço do Cliente</p>
+                {client?.address ? (
+                  <div className="text-slate-700 mt-0.5 text-[10px] leading-snug">
+                    <p className="font-semibold">{client.address}, {client.number || 'S/N'}</p>
+                    {client.complement && <p className="text-slate-500">{client.complement}</p>}
+                    <p className="text-slate-500">{client.neighborhood && `${client.neighborhood} - `}{client.city}/{client.state}</p>
+                    <p className="font-mono text-[9px] text-slate-400">CEP: {client.cep}</p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-slate-600 mt-0.5 font-medium">Cadastro regularizado</p>
+                    <p className="text-slate-400 text-[9px] italic">Registrado na base de dados</p>
+                  </>
+                )}
               </div>
             </div>
 
@@ -240,77 +251,106 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
 
             {/* Dynamic middle block based on document type */}
             {printType === 'entrada' ? (
-              <div className="border border-slate-200 rounded-lg p-4 bg-amber-50/30 border-dashed text-slate-700 print:bg-white">
-                <p className="font-bold text-[10px] uppercase text-amber-800 mb-1">Anotações de Acessórios / Estado Físico:</p>
-                <p className="text-[11px] italic">Acompanha: Cabo de energia e acessórios descritos na ficha. Aparelho apresenta marcas normais de uso, sem danos mecânicos visíveis graves na estrutura externa.</p>
-              </div>
-            ) : (
-              /* Cost Detail Table (Show only on Budget and Withdrawal receipts) */
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <div className="bg-slate-100 px-4 py-2 font-bold text-slate-700 text-[10px] uppercase border-b border-slate-200">
-                  {printType === 'retirada' ? 'Serviços Prestados e Peças Aplicadas' : 'Itens, Peças e Mão de Obra Orçados'}
+              <div className="border border-slate-200 rounded-lg p-4 bg-amber-50/30 border-dashed text-slate-700 print:bg-white space-y-3">
+                <div>
+                  <p className="font-bold text-[10px] uppercase text-amber-800 mb-1">Anotações de Estado Físico / Danos / Arranhões:</p>
+                  <p className="text-[11px] italic text-slate-800">
+                    {order.physicalCondition || 'Sem avarias externas ou arranhões visíveis relatados.'}
+                  </p>
                 </div>
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                      <th className="py-2 px-4">Item / Descrição do Componente ou Serviço</th>
-                      <th className="py-2 px-4 text-center">Tipo</th>
-                      <th className="py-2 px-4 text-center">Qtd</th>
-                      <th className="py-2 px-4 text-right">Unitário</th>
-                      <th className="py-2 px-4 text-right">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {/* Labor Cost Row */}
-                    {order.laborCost > 0 && (
-                      <tr>
-                        <td className="py-2.5 px-4 font-semibold text-slate-800">Serviço de Mão de Obra Técnica</td>
-                        <td className="py-2.5 px-4 text-center text-slate-500 font-bold uppercase text-[9px]">Serviço</td>
-                        <td className="py-2.5 px-4 text-center text-slate-600">1</td>
-                        <td className="py-2.5 px-4 text-right text-slate-600">{formatBRL(order.laborCost)}</td>
-                        <td className="py-2.5 px-4 text-right font-bold text-slate-800">{formatBRL(order.laborCost)}</td>
-                      </tr>
-                    )}
-                    {/* Applied Parts Rows */}
-                    {order.parts.map((p, idx) => (
-                      <tr key={p.id || idx}>
-                        <td className="py-2.5 px-4 font-medium text-slate-800">{p.name}</td>
-                        <td className="py-2.5 px-4 text-center text-slate-500 font-bold uppercase text-[9px]">Peça</td>
-                        <td className="py-2.5 px-4 text-center text-slate-600">{p.quantity}</td>
-                        <td className="py-2.5 px-4 text-right text-slate-600">{formatBRL(p.unitPrice)}</td>
-                        <td className="py-2.5 px-4 text-right font-semibold text-slate-800">{formatBRL(p.quantity * p.unitPrice)}</td>
-                      </tr>
-                    ))}
-                    {/* If no parts and no labor */}
-                    {order.parts.length === 0 && order.laborCost === 0 && (
-                      <tr>
-                        <td colSpan={5} className="py-6 text-center text-slate-400 italic">Nenhum valor lançado neste orçamento.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-
-                {/* Total and Settle Status block */}
-                {printType === 'retirada' ? (
-                  <div className="bg-emerald-800 text-white p-4 flex justify-between items-center print:bg-slate-100 print:text-slate-900 print:border-t print:border-slate-300">
-                    <div className="flex flex-col">
-                      <span className="font-black text-[10px] uppercase tracking-wider text-emerald-200 print:text-slate-500">Situação de Pagamento:</span>
-                      <strong className="text-xs uppercase font-extrabold text-white print:text-slate-900">
-                        {order.isPaid ? '✓ QUITADO E LIQUIDADO EM CAIXA' : '⚠ VALOR PENDENTE / COBRANÇA EM CONTA'}
-                      </strong>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-emerald-200 block font-bold print:text-slate-500">VALOR TOTAL:</span>
-                      <strong className="text-base font-black tracking-tight">{formatBRL(order.totalCost)}</strong>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-slate-900 text-white p-4 flex justify-between items-center print:bg-slate-100 print:text-slate-900 print:border-t print:border-slate-300">
-                    <span className="font-black text-xs uppercase tracking-wider print:text-slate-700">Valor Total do Orçamento:</span>
-                    <strong className="text-base font-black tracking-tight">{formatBRL(order.totalCost)}</strong>
+                {order.observations && (
+                  <div>
+                    <p className="font-bold text-[10px] uppercase text-indigo-800 mb-1">Observações da Entrada:</p>
+                    <p className="text-[11px] italic text-slate-800">{order.observations}</p>
                   </div>
                 )}
               </div>
+            ) : (
+              <>
+                {(order.physicalCondition || order.observations) && (
+                  <div className="border border-slate-200 rounded-lg p-4 bg-amber-50/10 text-slate-700 print:bg-white grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    {order.physicalCondition && (
+                      <div>
+                        <p className="font-bold text-[9px] uppercase text-slate-500 mb-1">🔍 Estado Físico / Danos / Arranhões na Entrada:</p>
+                        <p className="text-[10px] text-slate-700">{order.physicalCondition}</p>
+                      </div>
+                    )}
+                    {order.observations && (
+                      <div>
+                        <p className="font-bold text-[9px] uppercase text-slate-500 mb-1">📝 Observações Gerais da Entrada:</p>
+                        <p className="text-[10px] text-slate-700">{order.observations}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Cost Detail Table (Show only on Budget and Withdrawal receipts) */}
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                    <div className="bg-slate-100 px-4 py-2 font-bold text-slate-700 text-[10px] uppercase border-b border-slate-200">
+                      {printType === 'retirada' ? 'Serviços Prestados e Peças Aplicadas' : 'Itens, Peças e Mão de Obra Orçados'}
+                    </div>
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                          <th className="py-2 px-4">Item / Descrição do Componente ou Serviço</th>
+                          <th className="py-2 px-4 text-center">Tipo</th>
+                          <th className="py-2 px-4 text-center">Qtd</th>
+                          <th className="py-2 px-4 text-right">Unitário</th>
+                          <th className="py-2 px-4 text-right">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {/* Labor Cost Row */}
+                        {order.laborCost > 0 && (
+                          <tr>
+                            <td className="py-2.5 px-4 font-semibold text-slate-800">Serviço de Mão de Obra Técnica</td>
+                            <td className="py-2.5 px-4 text-center text-slate-500 font-bold uppercase text-[9px]">Serviço</td>
+                            <td className="py-2.5 px-4 text-center text-slate-600">1</td>
+                            <td className="py-2.5 px-4 text-right text-slate-600">{formatBRL(order.laborCost)}</td>
+                            <td className="py-2.5 px-4 text-right font-bold text-slate-800">{formatBRL(order.laborCost)}</td>
+                          </tr>
+                        )}
+                        {/* Applied Parts Rows */}
+                        {order.parts.map((p, idx) => (
+                          <tr key={p.id || idx}>
+                            <td className="py-2.5 px-4 font-medium text-slate-800">{p.name}</td>
+                            <td className="py-2.5 px-4 text-center text-slate-500 font-bold uppercase text-[9px]">Peça</td>
+                            <td className="py-2.5 px-4 text-center text-slate-600">{p.quantity}</td>
+                            <td className="py-2.5 px-4 text-right text-slate-600">{formatBRL(p.unitPrice)}</td>
+                            <td className="py-2.5 px-4 text-right font-semibold text-slate-800">{formatBRL(p.quantity * p.unitPrice)}</td>
+                          </tr>
+                        ))}
+                        {/* If no parts and no labor */}
+                        {order.parts.length === 0 && order.laborCost === 0 && (
+                          <tr>
+                            <td colSpan={5} className="py-6 text-center text-slate-400 italic">Nenhum valor lançado neste orçamento.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+
+                    {/* Total and Settle Status block */}
+                    {printType === 'retirada' ? (
+                      <div className="bg-emerald-800 text-white p-4 flex justify-between items-center print:bg-slate-100 print:text-slate-900 print:border-t print:border-slate-300">
+                        <div className="flex flex-col">
+                          <span className="font-black text-[10px] uppercase tracking-wider text-emerald-200 print:text-slate-500">Situação de Pagamento:</span>
+                          <strong className="text-xs uppercase font-extrabold text-white print:text-slate-900">
+                            {order.isPaid ? '✓ QUITADO E LIQUIDADO EM CAIXA' : '⚠ VALOR PENDENTE / COBRANÇA EM CONTA'}
+                          </strong>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-emerald-200 block font-bold print:text-slate-500">VALOR TOTAL:</span>
+                          <strong className="text-base font-black tracking-tight">{formatBRL(order.totalCost)}</strong>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-slate-900 text-white p-4 flex justify-between items-center print:bg-slate-100 print:text-slate-900 print:border-t print:border-slate-300">
+                        <span className="font-black text-xs uppercase tracking-wider print:text-slate-700">Valor Total do Orçamento:</span>
+                        <strong className="text-base font-black tracking-tight">{formatBRL(order.totalCost)}</strong>
+                      </div>
+                    )}
+                  </div>
+              </>
             )}
 
             {/* Terms and warranty info */}

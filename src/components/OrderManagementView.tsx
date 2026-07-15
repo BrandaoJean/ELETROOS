@@ -59,6 +59,8 @@ export default function OrderManagementView({
   const [newModel, setNewModel] = useState('');
   const [newSerial, setNewSerial] = useState('');
   const [newProblem, setNewProblem] = useState('');
+  const [newPhysicalCondition, setNewPhysicalCondition] = useState('');
+  const [newObservations, setNewObservations] = useState('');
   const [newLaborCost, setNewLaborCost] = useState('0');
   const [dueDate, setDueDate] = useState('2026-07-20');
 
@@ -278,6 +280,8 @@ export default function OrderManagementView({
       model: newModel,
       serialNumber: newSerial,
       reportedProblem: newProblem,
+      physicalCondition: newPhysicalCondition,
+      observations: newObservations,
       technicalReport: '',
       parts: [],
       laborCost: parseFloat(newLaborCost) || 0,
@@ -294,6 +298,8 @@ export default function OrderManagementView({
     setNewModel('');
     setNewSerial('');
     setNewProblem('');
+    setNewPhysicalCondition('');
+    setNewObservations('');
     setNewLaborCost('0');
   };
 
@@ -471,10 +477,45 @@ export default function OrderManagementView({
                 <h4 className="font-bold text-slate-700 uppercase text-[10px] tracking-wider flex items-center gap-1">
                   <XCircle size={12} className="text-slate-400" /> Problema Relatado (Cliente)
                 </h4>
-                <p className="text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 leading-relaxed italic">
+                <p className="text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 leading-relaxed italic text-xs">
                   "{activeOS.reportedProblem}"
                 </p>
               </div>
+
+              {/* Physical Condition & General Observations (Intake) */}
+              {(activeOS.physicalCondition || activeOS.observations) && (
+                <div className="p-5 border-b border-slate-100 text-xs grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/30">
+                  {activeOS.physicalCondition ? (
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-slate-700 uppercase text-[9px] tracking-wider flex items-center gap-1">
+                        🔍 Estado Físico / Danos / Arranhões
+                      </h4>
+                      <p className="text-slate-600 bg-white p-2.5 rounded-lg border border-slate-250 leading-relaxed">
+                        {activeOS.physicalCondition}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-slate-700 uppercase text-[9px] tracking-wider flex items-center gap-1">
+                        🔍 Estado Físico / Danos / Arranhões
+                      </h4>
+                      <p className="text-slate-400 italic bg-white p-2.5 rounded-lg border border-slate-250 leading-relaxed">
+                        Nenhum dano ou risco físico relatado.
+                      </p>
+                    </div>
+                  )}
+                  {activeOS.observations && (
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-slate-700 uppercase text-[9px] tracking-wider flex items-center gap-1">
+                        📝 Observações Gerais da Entrada
+                      </h4>
+                      <p className="text-slate-600 bg-white p-2.5 rounded-lg border border-slate-250 leading-relaxed">
+                        {activeOS.observations}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Diagnostic and Labor input (Technician) */}
               <div className="p-5 border-b border-slate-100 space-y-4">
@@ -807,6 +848,29 @@ export default function OrderManagementView({
                   onChange={(e) => setNewProblem(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">Estado Físico / Danos / Arranhões:</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Riscos na tampa, tela intacta, amassados..."
+                    value={newPhysicalCondition}
+                    onChange={(e) => setNewPhysicalCondition(e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">Observações da Entrada (Acessórios, etc):</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Deixou com cabo HDMI, sem fonte..."
+                    value={newObservations}
+                    onChange={(e) => setNewObservations(e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
