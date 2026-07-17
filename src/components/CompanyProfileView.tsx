@@ -27,11 +27,13 @@ import { CompanyProfile } from '../types';
 interface CompanyProfileViewProps {
   companyProfile: CompanyProfile;
   setCompanyProfile: React.Dispatch<React.SetStateAction<CompanyProfile>>;
+  onResetSystem?: () => void;
 }
 
 export default function CompanyProfileView({
   companyProfile,
-  setCompanyProfile
+  setCompanyProfile,
+  onResetSystem
 }: CompanyProfileViewProps) {
   // Form states matching CompanyProfile structure
   const [cnpj, setCnpj] = useState(companyProfile.cnpj || '');
@@ -61,6 +63,7 @@ export default function CompanyProfileView({
   const [environment, setEnvironment] = useState<'homologacao' | 'producao'>(companyProfile.environment || 'homologacao');
 
   // Local-only states
+  const [showWipeConfirm, setShowWipeConfirm] = useState(false);
   const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
   const [isLoadingCep, setIsLoadingCep] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -555,6 +558,54 @@ export default function CompanyProfileView({
         {/* RIGHT COLUMN: TRIBUTÁRIO & FISCAL E CERTIFICADO */}
         <div className="space-y-6">
           
+          {/* SYSTEM DEPLOYMENT CARD (BANCO DE DADOS LIMPO) */}
+          <div className="bg-rose-50/50 rounded-2xl border border-rose-200 p-5 shadow-xs space-y-4">
+            <h2 className="text-xs font-black uppercase text-rose-800 tracking-wider flex items-center gap-2 pb-2 border-b border-rose-100">
+              <Server size={14} className="text-rose-600" /> Implantação do Aplicativo
+            </h2>
+            
+            <p className="text-[11px] text-rose-950/70 leading-relaxed">
+              Deseja entregar o <strong>banco de dados limpo</strong> para iniciar a operação real? Esta ação apagará permanentemente todos os clientes, orçamentos, produtos e histórico financeiro de testes, redirecionando para o Assistente de Onboarding.
+            </p>
+
+            {!showWipeConfirm ? (
+              <button
+                type="button"
+                onClick={() => setShowWipeConfirm(true)}
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Server size={14} /> Implantar Sistema (Limpar Base)
+              </button>
+            ) : (
+              <div className="bg-white border border-rose-200 rounded-xl p-3.5 space-y-3">
+                <p className="text-[10px] text-rose-800 font-bold leading-tight">
+                  ⚠️ Tem certeza absoluta? Isso excluirá todas as ordens de serviço, produtos, fornecedores e cadastros.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowWipeConfirm(false)}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] py-2 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Não, Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowWipeConfirm(false);
+                      if (onResetSystem) {
+                        onResetSystem();
+                      }
+                    }}
+                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] py-2 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Sim, Limpar Tudo!
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* ENVIRONMENT CARD */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
             <h2 className="text-xs font-black uppercase text-slate-400 tracking-wider flex items-center gap-2 pb-2 border-b border-slate-100">

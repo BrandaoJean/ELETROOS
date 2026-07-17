@@ -33,7 +33,8 @@ import {
   ProductPurchase,
   FinancialAccountItem,
   InserviceableAsset,
-  CompanyProfile
+  CompanyProfile,
+  User
 } from './types';
 
 // Import Utilities & Mock Data
@@ -63,47 +64,194 @@ import ServicesCatalogView from './components/ServicesCatalogView';
 import FinancialModuleView from './components/FinancialModuleView';
 import InserviceableAssetsView from './components/InserviceableAssetsView';
 import CompanyProfileView from './components/CompanyProfileView';
+import LoginView from './components/LoginView';
 
 export default function App() {
   // Navigation State
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
+  // Users State (Authentication)
+  const [users, setUsers] = useState<User[]>(() => {
+    const saved = localStorage.getItem('eletroos_users');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'U-001',
+        name: 'Administrador',
+        username: 'admin',
+        email: 'brandao.jean@gmail.com',
+        role: 'administrador',
+        password: 'admin',
+        companyCnpj: '12.345.678/0001-90'
+      },
+      {
+        id: 'U-002',
+        name: 'Técnico Silva',
+        username: 'tecnico',
+        email: 'tecnico@eletroos.com.br',
+        role: 'tecnico',
+        password: '123',
+        companyCnpj: '12.345.678/0001-90'
+      }
+    ];
+  });
+
+  // Current Logged-in User Session
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('eletroos_current_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   // Core Entity States (With LocalStorage Hydration)
-  const [orders, setOrders] = useState<ServiceOrder[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>([]);
-  const [notifications, setNotifications] = useState<PushNotification[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [serviceTemplates, setServiceTemplates] = useState<ServiceTemplate[]>([]);
-  const [purchases, setPurchases] = useState<ProductPurchase[]>([]);
-  const [manualAccounts, setManualAccounts] = useState<FinancialAccountItem[]>([]);
-  const [inserviceableAssets, setInserviceableAssets] = useState<InserviceableAsset[]>([]);
-  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>({
-    cnpj: '12.345.678/0001-90',
-    razaoSocial: 'EletroOS Eletrônica e Manutenção MEI',
-    nomeFantasia: 'EletroOS Assistência Técnica',
-    cnaeCode: '9521-5/00',
-    cnaeDesc: 'Reparação e manutenção de equipamentos eletroeletrônicos de uso pessoal e doméstico',
-    taxRegime: 'mei',
-    stateRegistration: 'Isento',
-    municipalRegistration: '987654-32',
-    taxRateSimple: 0,
-    icmsRate: 0,
-    issqnRate: 2.01,
-    digitalCertificateUploaded: false,
-    nfeSerie: '1',
-    nfeNextNumber: '1',
-    cep: '01001-000',
-    address: 'Praça da Sé',
-    number: '355',
-    complement: 'lado ímpar',
-    neighborhood: 'Sé',
-    city: 'São Paulo',
-    state: 'SP',
-    phone: '(11) 3242-2211',
-    email: 'contato@eletroos.com.br',
-    environment: 'homologacao'
+  const [orders, setOrders] = useState<ServiceOrder[]>(() => {
+    const saved = localStorage.getItem('eletroos_orders');
+    return saved ? JSON.parse(saved) : mockServiceOrders;
+  });
+
+  const [clients, setClients] = useState<Client[]>(() => {
+    const saved = localStorage.getItem('eletroos_clients');
+    return saved ? JSON.parse(saved) : mockClients;
+  });
+
+  const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>(() => {
+    const saved = localStorage.getItem('eletroos_transactions');
+    return saved ? JSON.parse(saved) : mockBankTransactions;
+  });
+
+  const [notifications, setNotifications] = useState<PushNotification[]>(() => {
+    const saved = localStorage.getItem('eletroos_notifications');
+    return saved ? JSON.parse(saved) : mockNotifications;
+  });
+
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
+    const saved = localStorage.getItem('eletroos_suppliers');
+    return saved ? JSON.parse(saved) : mockSuppliers;
+  });
+
+  const [products, setProducts] = useState<Product[]>(() => {
+    const saved = localStorage.getItem('eletroos_products');
+    return saved ? JSON.parse(saved) : mockProducts;
+  });
+
+  const [serviceTemplates, setServiceTemplates] = useState<ServiceTemplate[]>(() => {
+    const saved = localStorage.getItem('eletroos_services');
+    return saved ? JSON.parse(saved) : mockServiceTemplates;
+  });
+
+  const [purchases, setPurchases] = useState<ProductPurchase[]>(() => {
+    const saved = localStorage.getItem('eletroos_purchases');
+    return saved ? JSON.parse(saved) : mockPurchases;
+  });
+
+  const [manualAccounts, setManualAccounts] = useState<FinancialAccountItem[]>(() => {
+    const saved = localStorage.getItem('eletroos_manual_accounts');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'ACC-001',
+        type: 'pagar',
+        description: 'Aluguel do Galpão / Oficina',
+        category: 'Aluguel',
+        amount: 1200.00,
+        dueDate: '2026-07-10',
+        paymentDate: '2026-07-10',
+        status: 'pago',
+        paymentMethod: 'pix'
+      },
+      {
+        id: 'ACC-002',
+        type: 'pagar',
+        description: 'Fatura de Energia Elétrica Enel',
+        category: 'Utilidades',
+        amount: 345.80,
+        dueDate: '2026-07-15',
+        status: 'pendente'
+      },
+      {
+        id: 'ACC-003',
+        type: 'pagar',
+        description: 'Serviço de Internet Fibra',
+        category: 'Comunicações',
+        amount: 149.90,
+        dueDate: '2026-07-20',
+        status: 'pendente'
+      },
+      {
+        id: 'ACC-004',
+        type: 'receber',
+        description: 'Venda de Sucata de Cobre / Placas',
+        category: 'Reciclagem',
+        amount: 280.00,
+        dueDate: '2026-07-05',
+        paymentDate: '2026-07-05',
+        status: 'pago',
+        paymentMethod: 'dinheiro'
+      },
+      {
+        id: 'ACC-005',
+        type: 'receber',
+        description: 'Consultoria de Recuperação de Inversor',
+        category: 'Serviço Externo',
+        amount: 450.00,
+        dueDate: '2026-07-18',
+        status: 'pendente'
+      }
+    ];
+  });
+
+  const [inserviceableAssets, setInserviceableAssets] = useState<InserviceableAsset[]>(() => {
+    const saved = localStorage.getItem('eletroos_inserviceable_assets');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'ATV-1001',
+        clientId: 'C-001',
+        clientName: 'Ana Paula Lima',
+        clientPhone: '(11) 98765-4321',
+        equipment: 'Smart TV 55"',
+        brand: 'Samsung',
+        model: 'UN55TU8000GXZD',
+        serialNumber: 'Z6YH3X8N901234',
+        entryDate: '2026-07-02',
+        origin: 'ordem_servico',
+        originId: 'OS-1001',
+        remunerated: false,
+        valuePaid: 0,
+        status: 'descartado',
+        notes: 'Display trincado. Cliente autorizou descarte ecológico.'
+      }
+    ];
+  });
+
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => {
+    const saved = localStorage.getItem('eletroos_company_profile');
+    if (saved) return JSON.parse(saved);
+    return {
+      cnpj: '12.345.678/0001-90',
+      razaoSocial: 'EletroOS Eletrônica e Manutenção MEI',
+      nomeFantasia: 'EletroOS Assistência Técnica',
+      cnaeCode: '9521-5/00',
+      cnaeDesc: 'Reparação e manutenção de equipamentos eletroeletrônicos de uso pessoal e doméstico',
+      taxRegime: 'mei',
+      stateRegistration: 'Isento',
+      municipalRegistration: '987654-32',
+      taxRateSimple: 0,
+      icmsRate: 0,
+      issqnRate: 2.01,
+      digitalCertificateUploaded: false,
+      nfeSerie: '1',
+      nfeNextNumber: '1',
+      cep: '01001-000',
+      address: 'Praça da Sé',
+      number: '355',
+      complement: 'lado ímpar',
+      neighborhood: 'Sé',
+      city: 'São Paulo',
+      state: 'SP',
+      phone: '(11) 3242-2211',
+      email: 'contato@eletroos.com.br',
+      environment: 'homologacao'
+    };
   });
 
   // Selected sub-states
@@ -135,160 +283,41 @@ export default function App() {
     return notifications.filter(n => !n.read).length;
   }, [notifications]);
 
-  // Load state from local storage on mount
-  useEffect(() => {
-    const savedOrders = localStorage.getItem('eletroos_orders');
-    const savedClients = localStorage.getItem('eletroos_clients');
-    const savedTx = localStorage.getItem('eletroos_transactions');
-    const savedNotif = localStorage.getItem('eletroos_notifications');
-    const savedSuppliers = localStorage.getItem('eletroos_suppliers');
-    const savedProducts = localStorage.getItem('eletroos_products');
-    const savedServices = localStorage.getItem('eletroos_services');
-    const savedPurchases = localStorage.getItem('eletroos_purchases');
-
-    if (savedOrders) setOrders(JSON.parse(savedOrders));
-    else setOrders(mockServiceOrders);
-
-    if (savedClients) setClients(JSON.parse(savedClients));
-    else setClients(mockClients);
-
-    if (savedTx) setBankTransactions(JSON.parse(savedTx));
-    else setBankTransactions(mockBankTransactions);
-
-    if (savedNotif) setNotifications(JSON.parse(savedNotif));
-    else setNotifications(mockNotifications);
-
-    if (savedSuppliers) setSuppliers(JSON.parse(savedSuppliers));
-    else setSuppliers(mockSuppliers);
-
-    if (savedProducts) setProducts(JSON.parse(savedProducts));
-    else setProducts(mockProducts);
-
-    if (savedServices) setServiceTemplates(JSON.parse(savedServices));
-    else setServiceTemplates(mockServiceTemplates);
-
-    if (savedPurchases) setPurchases(JSON.parse(savedPurchases));
-    else setPurchases(mockPurchases);
-
-    const savedAccounts = localStorage.getItem('eletroos_manual_accounts');
-    if (savedAccounts) setManualAccounts(JSON.parse(savedAccounts));
-    else {
-      setManualAccounts([
-        {
-          id: 'ACC-001',
-          type: 'pagar',
-          description: 'Aluguel do Galpão / Oficina',
-          category: 'Aluguel',
-          amount: 1200.00,
-          dueDate: '2026-07-10',
-          paymentDate: '2026-07-10',
-          status: 'pago',
-          paymentMethod: 'pix'
-        },
-        {
-          id: 'ACC-002',
-          type: 'pagar',
-          description: 'Fatura de Energia Elétrica Enel',
-          category: 'Utilidades',
-          amount: 345.80,
-          dueDate: '2026-07-15',
-          status: 'pendente'
-        },
-        {
-          id: 'ACC-003',
-          type: 'pagar',
-          description: 'Serviço de Internet Fibra',
-          category: 'Comunicações',
-          amount: 149.90,
-          dueDate: '2026-07-20',
-          status: 'pendente'
-        },
-        {
-          id: 'ACC-004',
-          type: 'receber',
-          description: 'Venda de Sucata de Cobre / Placas',
-          category: 'Reciclagem',
-          amount: 280.00,
-          dueDate: '2026-07-05',
-          paymentDate: '2026-07-05',
-          status: 'pago',
-          paymentMethod: 'dinheiro'
-        },
-        {
-          id: 'ACC-005',
-          type: 'receber',
-          description: 'Consultoria de Recuperação de Inversor',
-          category: 'Serviço Externo',
-          amount: 450.00,
-          dueDate: '2026-07-18',
-          status: 'pendente'
-        }
-      ]);
-    }
-
-    const savedAssets = localStorage.getItem('eletroos_inserviceable_assets');
-    if (savedAssets) setInserviceableAssets(JSON.parse(savedAssets));
-    else {
-      setInserviceableAssets([
-        {
-          id: 'ATV-1001',
-          clientId: 'C-001',
-          clientName: 'Ana Paula Lima',
-          clientPhone: '(11) 98765-4321',
-          equipment: 'Smart TV 55"',
-          brand: 'Samsung',
-          model: 'UN55TU8000GXZD',
-          serialNumber: 'Z6YH3X8N901234',
-          entryDate: '2026-07-02',
-          origin: 'ordem_servico',
-          originId: 'OS-1001',
-          remunerated: false,
-          valuePaid: 0,
-          status: 'descartado',
-          notes: 'Display trincado. Cliente autorizou descarte ecológico.'
-        }
-      ]);
-    }
-
-    const savedCompanyProfile = localStorage.getItem('eletroos_company_profile');
-    if (savedCompanyProfile) setCompanyProfile(JSON.parse(savedCompanyProfile));
-  }, []);
-
   // Save to local storage whenever states change
   useEffect(() => {
     localStorage.setItem('eletroos_company_profile', JSON.stringify(companyProfile));
   }, [companyProfile]);
 
   useEffect(() => {
-    if (orders.length > 0) localStorage.setItem('eletroos_orders', JSON.stringify(orders));
+    localStorage.setItem('eletroos_orders', JSON.stringify(orders));
   }, [orders]);
 
   useEffect(() => {
-    if (clients.length > 0) localStorage.setItem('eletroos_clients', JSON.stringify(clients));
+    localStorage.setItem('eletroos_clients', JSON.stringify(clients));
   }, [clients]);
 
   useEffect(() => {
-    if (bankTransactions.length > 0) localStorage.setItem('eletroos_transactions', JSON.stringify(bankTransactions));
+    localStorage.setItem('eletroos_transactions', JSON.stringify(bankTransactions));
   }, [bankTransactions]);
 
   useEffect(() => {
-    if (notifications.length > 0) localStorage.setItem('eletroos_notifications', JSON.stringify(notifications));
+    localStorage.setItem('eletroos_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
   useEffect(() => {
-    if (suppliers.length > 0) localStorage.setItem('eletroos_suppliers', JSON.stringify(suppliers));
+    localStorage.setItem('eletroos_suppliers', JSON.stringify(suppliers));
   }, [suppliers]);
 
   useEffect(() => {
-    if (products.length > 0) localStorage.setItem('eletroos_products', JSON.stringify(products));
+    localStorage.setItem('eletroos_products', JSON.stringify(products));
   }, [products]);
 
   useEffect(() => {
-    if (serviceTemplates.length > 0) localStorage.setItem('eletroos_services', JSON.stringify(serviceTemplates));
+    localStorage.setItem('eletroos_services', JSON.stringify(serviceTemplates));
   }, [serviceTemplates]);
 
   useEffect(() => {
-    if (purchases.length > 0) localStorage.setItem('eletroos_purchases', JSON.stringify(purchases));
+    localStorage.setItem('eletroos_purchases', JSON.stringify(purchases));
   }, [purchases]);
 
   useEffect(() => {
@@ -298,6 +327,111 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('eletroos_inserviceable_assets', JSON.stringify(inserviceableAssets));
   }, [inserviceableAssets]);
+
+  useEffect(() => {
+    localStorage.setItem('eletroos_users', JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('eletroos_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('eletroos_current_user');
+    }
+  }, [currentUser]);
+
+  // Deployment handler to clear the database and save the new profile/admin
+  const handleDeploySystem = (companyData: Partial<CompanyProfile>, adminUser: Partial<User>) => {
+    // 1. Create company profile
+    const newCompany: CompanyProfile = {
+      cnpj: companyData.cnpj || '00.000.000/0000-00',
+      razaoSocial: companyData.razaoSocial || '',
+      nomeFantasia: companyData.nomeFantasia || companyData.razaoSocial || '',
+      cnaeCode: '9521-5/00',
+      cnaeDesc: 'Reparação e manutenção de equipamentos eletroeletrônicos de uso pessoal e doméstico',
+      taxRegime: 'mei',
+      stateRegistration: 'Isento',
+      municipalRegistration: '',
+      taxRateSimple: 0,
+      icmsRate: 0,
+      issqnRate: 2.0,
+      digitalCertificateUploaded: false,
+      nfeSerie: '1',
+      nfeNextNumber: '1',
+      cep: '',
+      address: '',
+      number: '',
+      complement: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      phone: companyData.phone || '',
+      email: companyData.email || '',
+      environment: 'homologacao'
+    };
+
+    // 2. Create admin user
+    const newAdmin: User = {
+      id: 'U-' + Date.now(),
+      name: adminUser.name || 'Administrador',
+      username: adminUser.username || 'admin',
+      email: adminUser.email || '',
+      role: 'administrador',
+      password: adminUser.password || 'admin',
+      companyCnpj: newCompany.cnpj
+    };
+
+    // 3. Clear all states & Save to localStorage
+    setOrders([]);
+    setClients([]);
+    setBankTransactions([]);
+    setNotifications([]);
+    setSuppliers([]);
+    setProducts([]);
+    setServiceTemplates([]);
+    setPurchases([]);
+    setManualAccounts([]);
+    setInserviceableAssets([]);
+    
+    // Set company profile and user lists
+    setCompanyProfile(newCompany);
+    const newUsersList = [newAdmin];
+    setUsers(newUsersList);
+    
+    // Log in this user
+    setCurrentUser(newAdmin);
+
+    // Save empty lists to localStorage explicitly to prevent any fallback loading on next mount
+    localStorage.setItem('eletroos_orders', JSON.stringify([]));
+    localStorage.setItem('eletroos_clients', JSON.stringify([]));
+    localStorage.setItem('eletroos_transactions', JSON.stringify([]));
+    localStorage.setItem('eletroos_notifications', JSON.stringify([]));
+    localStorage.setItem('eletroos_suppliers', JSON.stringify([]));
+    localStorage.setItem('eletroos_products', JSON.stringify([]));
+    localStorage.setItem('eletroos_services', JSON.stringify([]));
+    localStorage.setItem('eletroos_purchases', JSON.stringify([]));
+    localStorage.setItem('eletroos_manual_accounts', JSON.stringify([]));
+    localStorage.setItem('eletroos_inserviceable_assets', JSON.stringify([]));
+    localStorage.setItem('eletroos_company_profile', JSON.stringify(newCompany));
+    localStorage.setItem('eletroos_users', JSON.stringify(newUsersList));
+    localStorage.setItem('eletroos_current_user', JSON.stringify(newAdmin));
+    localStorage.setItem('eletroos_installed', 'true');
+    
+    // Redirect to dashboard
+    setActiveTab('dashboard');
+  };
+
+  // Re-onboarding / trigger deployment wizard from profile tab
+  const handleResetSystem = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('eletroos_current_user');
+    localStorage.removeItem('eletroos_installed');
+  };
+
+  // Log out session
+  const handleLogout = () => {
+    setCurrentUser(null);
+  };
 
   // Handler: Select OS globally (e.g. from calendar or dashboard clicking)
   const handleSelectOrder = (id: string | null) => {
@@ -618,6 +752,17 @@ export default function App() {
   // Active OS to settle payment
   const activePaymentOS = orders.find(o => o.id === activePaymentOSId);
 
+  if (!currentUser) {
+    return (
+      <LoginView 
+        users={users}
+        companyProfile={companyProfile}
+        onLoginSuccess={(u) => setCurrentUser(u)}
+        onDeploySystem={handleDeploySystem}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-600 selection:text-white">
       
@@ -833,6 +978,33 @@ export default function App() {
               </button>
             </nav>
 
+            {/* User Session Profile Card */}
+            <div className="p-4 border-t border-slate-800 bg-slate-950/20">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center font-black text-white text-xs uppercase shrink-0">
+                  {currentUser.name.slice(0, 2)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-white truncate leading-tight">
+                    {currentUser.name}
+                  </p>
+                  <p className="text-[10px] text-slate-500 capitalize font-semibold mt-0.5">
+                    {currentUser.role === 'administrador' ? 'Painel Admin' : currentUser.role}
+                  </p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  type="button"
+                  title="Sair do Sistema"
+                  className="p-1.5 hover:bg-slate-800 hover:text-rose-400 text-slate-500 rounded-lg transition-all cursor-pointer shrink-0"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
             {/* Sidebar MEI faturamento limits card (High Density) */}
             <div className="p-4 mt-auto border-t border-slate-800 bg-slate-950/30">
               <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-800">
@@ -982,6 +1154,7 @@ export default function App() {
             <CompanyProfileView
               companyProfile={companyProfile}
               setCompanyProfile={setCompanyProfile}
+              onResetSystem={handleResetSystem}
             />
           )}
 

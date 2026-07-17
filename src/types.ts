@@ -223,6 +223,22 @@ export interface CompanyProfile {
   environment?: 'homologacao' | 'producao';
 }
 
+export interface User {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  role: 'administrador' | 'tecnico' | 'atendente';
+  password?: string;
+  companyCnpj: string;
+}
+
+export interface AuthSession {
+  user: User | null;
+  company: CompanyProfile | null;
+}
+
+
 
 
 
