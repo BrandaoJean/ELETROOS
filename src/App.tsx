@@ -622,7 +622,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-600 selection:text-white">
       
       {/* TOP AGENDA BAR */}
-      <div className="h-14 bg-white border-b border-slate-200 flex items-center px-4 gap-4 sticky top-0 z-40 shadow-xs shrink-0">
+      <div className="h-14 bg-white border-b border-slate-200 flex items-center px-4 gap-4 sticky top-0 z-40 shadow-xs shrink-0 print:hidden">
         <div className="bg-indigo-600 text-white text-[10px] font-black px-2 py-1 rounded uppercase tracking-wider font-display shrink-0">
           Agenda Hoje
         </div>
@@ -689,7 +689,7 @@ export default function App() {
       </div>
 
       {/* Main Container Layout */}
-      <div className="max-w-7xl mx-auto px-4 py-6 w-full flex-1 flex flex-col lg:flex-row gap-6">
+      <div className="max-w-7xl mx-auto px-4 py-6 w-full flex-1 flex flex-col lg:flex-row gap-6 print:block print:p-0 print:m-0 print:max-w-none">
         
         {/* Left navigation sidebar panel */}
         <aside className="w-full lg:w-60 shrink-0 flex flex-col gap-4">
@@ -1003,7 +1003,7 @@ export default function App() {
       )}
 
       {/* App Footer */}
-      <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center text-[10px] text-slate-400 font-medium shrink-0">
+      <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center text-[10px] text-slate-400 font-medium shrink-0 print:hidden">
         EletroOS © 2026 • Ferramenta Completa de Orçamentos, Pagamentos e Controle Financeiro MEI • Versão 2.4.0
       </footer>
 

@@ -95,7 +95,7 @@ export default function MeiReportView({ orders }: MeiReportViewProps) {
     <div className="space-y-6">
       
       {/* Intro and Info Card */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-5 justify-between items-start md:items-center">
+      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-5 justify-between items-start md:items-center print:hidden">
         <div className="space-y-1">
           <h2 className="text-base font-bold text-slate-800 flex items-center gap-1.5">
             <FileCheck className="text-indigo-600" size={18} /> Relatório de Faturamento Obrigatório MEI
@@ -124,10 +124,10 @@ export default function MeiReportView({ orders }: MeiReportViewProps) {
       </div>
 
       {/* Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 print:block">
         
         {/* Official Brazilian MEI Form Template (8 cols) */}
-        <div className="lg:col-span-8 bg-white border border-slate-300 rounded-xl shadow-md overflow-hidden p-6 max-w-3xl mx-auto space-y-6" id="mei-official-form">
+        <div className="lg:col-span-8 bg-white border border-slate-300 rounded-xl shadow-md overflow-hidden p-6 max-w-3xl mx-auto space-y-6 print:border-none print:shadow-none print:p-0 print:max-w-none print:w-full" id="mei-official-form">
           
           {/* Form Header */}
           <div className="text-center border-2 border-slate-900 p-4 space-y-1 rounded-lg">
@@ -223,7 +223,7 @@ export default function MeiReportView({ orders }: MeiReportViewProps) {
         </div>
 
         {/* Sidebar MEI Stats & Guides (4 cols) */}
-        <div className="lg:col-span-4 space-y-5">
+        <div className="lg:col-span-4 space-y-5 print:hidden">
           
           {/* Cumulative Progress bar */}
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">

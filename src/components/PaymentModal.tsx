@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   DollarSign, 
   Plus, 
@@ -202,8 +203,15 @@ export default function PaymentModal({
     return getWhatsAppLink(client.phone, whatsAppMessage);
   }, [client, whatsAppMessage]);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+      <style>{`
+        @media print {
+          #root {
+            display: none !important;
+          }
+        }
+      `}</style>
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100" id="modal-pagamento">
         
         {/* Header */}
@@ -513,6 +521,7 @@ export default function PaymentModal({
         )}
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

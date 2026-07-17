@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Printer, X, CheckSquare, ShieldCheck, FileText } from 'lucide-react';
 import { ServiceOrder, Client } from '../types';
 import { formatBRL } from '../utils';
@@ -374,7 +375,7 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
     );
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto print:p-0 print:bg-white print:static print:h-auto">
       <div className="bg-white rounded-xl shadow-2xl max-w-7xl w-full flex flex-col max-h-[90vh] border border-slate-200 overflow-hidden print:shadow-none print:border-none print:max-h-none print:rounded-none">
         
@@ -439,6 +440,9 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
         <div className="p-4 md:p-6 lg:p-8 overflow-y-auto flex-1 bg-slate-50 print:bg-white print:p-0 print:overflow-visible">
           <style>{`
             @media print {
+              #root {
+                display: none !important;
+              }
               @page {
                 size: A4 landscape !important;
                 margin: 5mm 6mm !important;
@@ -498,6 +502,7 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
