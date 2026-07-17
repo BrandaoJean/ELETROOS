@@ -177,4 +177,52 @@ export interface POSSale {
   timestamp: string;
 }
 
+export interface InserviceableAsset {
+  id: string;
+  clientId?: string;
+  clientName: string;
+  clientPhone?: string;
+  equipment: string;
+  brand: string;
+  model: string;
+  serialNumber: string;
+  entryDate: string;
+  origin: 'ordem_servico' | 'direto';
+  originId?: string;
+  remunerated: boolean;
+  valuePaid: number;
+  status: 'recebido' | 'descartado' | 'vendido_como_sucata';
+  notes?: string;
+}
+
+export interface CompanyProfile {
+  cnpj: string;
+  razaoSocial: string;
+  nomeFantasia: string;
+  cnaeCode: string;
+  cnaeDesc: string;
+  taxRegime: 'mei' | 'simples' | 'lucro_presumido' | 'lucro_real';
+  stateRegistration: string; // Inscrição Estadual
+  municipalRegistration: string; // Inscrição Municipal
+  taxRateSimple?: number; // Alíquota do Simples Nacional ou Imposto Geral
+  icmsRate?: number;
+  issqnRate?: number;
+  digitalCertificateUploaded: boolean;
+  digitalCertificatePassword?: string;
+  nfeSerie: string;
+  nfeNextNumber: string;
+  cep: string;
+  address: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  phone: string;
+  email: string;
+  environment?: 'homologacao' | 'producao';
+}
+
+
+
 

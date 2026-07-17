@@ -15,11 +15,26 @@ import {
   Calendar,
   Layers,
   Sparkles,
-  DollarSign
+  DollarSign,
+  ShieldAlert
 } from 'lucide-react';
 
 // Import Types
-import { ServiceOrder, Client, BankTransaction, PushNotification, PaymentItem, OSStatus, Supplier, Product, ServiceTemplate, ProductPurchase } from './types';
+import { 
+  ServiceOrder, 
+  Client, 
+  BankTransaction, 
+  PushNotification, 
+  PaymentItem, 
+  OSStatus, 
+  Supplier, 
+  Product, 
+  ServiceTemplate, 
+  ProductPurchase,
+  FinancialAccountItem,
+  InserviceableAsset,
+  CompanyProfile
+} from './types';
 
 // Import Utilities & Mock Data
 import { 
@@ -46,6 +61,8 @@ import ClientTracker from './components/ClientTracker';
 import PurchasesAndStockView from './components/PurchasesAndStockView';
 import ServicesCatalogView from './components/ServicesCatalogView';
 import FinancialModuleView from './components/FinancialModuleView';
+import InserviceableAssetsView from './components/InserviceableAssetsView';
+import CompanyProfileView from './components/CompanyProfileView';
 
 export default function App() {
   // Navigation State
@@ -60,6 +77,34 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [serviceTemplates, setServiceTemplates] = useState<ServiceTemplate[]>([]);
   const [purchases, setPurchases] = useState<ProductPurchase[]>([]);
+  const [manualAccounts, setManualAccounts] = useState<FinancialAccountItem[]>([]);
+  const [inserviceableAssets, setInserviceableAssets] = useState<InserviceableAsset[]>([]);
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>({
+    cnpj: '12.345.678/0001-90',
+    razaoSocial: 'EletroOS Eletrônica e Manutenção MEI',
+    nomeFantasia: 'EletroOS Assistência Técnica',
+    cnaeCode: '9521-5/00',
+    cnaeDesc: 'Reparação e manutenção de equipamentos eletroeletrônicos de uso pessoal e doméstico',
+    taxRegime: 'mei',
+    stateRegistration: 'Isento',
+    municipalRegistration: '987654-32',
+    taxRateSimple: 0,
+    icmsRate: 0,
+    issqnRate: 2.01,
+    digitalCertificateUploaded: false,
+    nfeSerie: '1',
+    nfeNextNumber: '1',
+    cep: '01001-000',
+    address: 'Praça da Sé',
+    number: '355',
+    complement: 'lado ímpar',
+    neighborhood: 'Sé',
+    city: 'São Paulo',
+    state: 'SP',
+    phone: '(11) 3242-2211',
+    email: 'contato@eletroos.com.br',
+    environment: 'homologacao'
+  });
 
   // Selected sub-states
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -124,9 +169,96 @@ export default function App() {
 
     if (savedPurchases) setPurchases(JSON.parse(savedPurchases));
     else setPurchases(mockPurchases);
+
+    const savedAccounts = localStorage.getItem('eletroos_manual_accounts');
+    if (savedAccounts) setManualAccounts(JSON.parse(savedAccounts));
+    else {
+      setManualAccounts([
+        {
+          id: 'ACC-001',
+          type: 'pagar',
+          description: 'Aluguel do Galpão / Oficina',
+          category: 'Aluguel',
+          amount: 1200.00,
+          dueDate: '2026-07-10',
+          paymentDate: '2026-07-10',
+          status: 'pago',
+          paymentMethod: 'pix'
+        },
+        {
+          id: 'ACC-002',
+          type: 'pagar',
+          description: 'Fatura de Energia Elétrica Enel',
+          category: 'Utilidades',
+          amount: 345.80,
+          dueDate: '2026-07-15',
+          status: 'pendente'
+        },
+        {
+          id: 'ACC-003',
+          type: 'pagar',
+          description: 'Serviço de Internet Fibra',
+          category: 'Comunicações',
+          amount: 149.90,
+          dueDate: '2026-07-20',
+          status: 'pendente'
+        },
+        {
+          id: 'ACC-004',
+          type: 'receber',
+          description: 'Venda de Sucata de Cobre / Placas',
+          category: 'Reciclagem',
+          amount: 280.00,
+          dueDate: '2026-07-05',
+          paymentDate: '2026-07-05',
+          status: 'pago',
+          paymentMethod: 'dinheiro'
+        },
+        {
+          id: 'ACC-005',
+          type: 'receber',
+          description: 'Consultoria de Recuperação de Inversor',
+          category: 'Serviço Externo',
+          amount: 450.00,
+          dueDate: '2026-07-18',
+          status: 'pendente'
+        }
+      ]);
+    }
+
+    const savedAssets = localStorage.getItem('eletroos_inserviceable_assets');
+    if (savedAssets) setInserviceableAssets(JSON.parse(savedAssets));
+    else {
+      setInserviceableAssets([
+        {
+          id: 'ATV-1001',
+          clientId: 'C-001',
+          clientName: 'Ana Paula Lima',
+          clientPhone: '(11) 98765-4321',
+          equipment: 'Smart TV 55"',
+          brand: 'Samsung',
+          model: 'UN55TU8000GXZD',
+          serialNumber: 'Z6YH3X8N901234',
+          entryDate: '2026-07-02',
+          origin: 'ordem_servico',
+          originId: 'OS-1001',
+          remunerated: false,
+          valuePaid: 0,
+          status: 'descartado',
+          notes: 'Display trincado. Cliente autorizou descarte ecológico.'
+        }
+      ]);
+    }
+
+    const savedCompanyProfile = localStorage.getItem('eletroos_company_profile');
+    if (savedCompanyProfile) setCompanyProfile(JSON.parse(savedCompanyProfile));
   }, []);
 
   // Save to local storage whenever states change
+  useEffect(() => {
+    localStorage.setItem('eletroos_company_profile', JSON.stringify(companyProfile));
+  }, [companyProfile]);
+
   useEffect(() => {
     if (orders.length > 0) localStorage.setItem('eletroos_orders', JSON.stringify(orders));
   }, [orders]);
@@ -159,6 +291,14 @@ export default function App() {
     if (purchases.length > 0) localStorage.setItem('eletroos_purchases', JSON.stringify(purchases));
   }, [purchases]);
 
+  useEffect(() => {
+    localStorage.setItem('eletroos_manual_accounts', JSON.stringify(manualAccounts));
+  }, [manualAccounts]);
+
+  useEffect(() => {
+    localStorage.setItem('eletroos_inserviceable_assets', JSON.stringify(inserviceableAssets));
+  }, [inserviceableAssets]);
+
   // Handler: Select OS globally (e.g. from calendar or dashboard clicking)
   const handleSelectOrder = (id: string | null) => {
     setSelectedOrderId(id);
@@ -168,6 +308,65 @@ export default function App() {
       const el = document.getElementById('detalhes-os-selecionada');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     }, 100);
+  };
+
+  // Handler: Add a manual account expense or revenue
+  const handleAddManualAccount = (acc: Omit<FinancialAccountItem, 'id'>) => {
+    const newId = `ACC-${100 + manualAccounts.length + 1}`;
+    setManualAccounts(prev => [...prev, { ...acc, id: newId }]);
+  };
+
+  // Handler: Add unserviceable asset
+  const handleDiscardAsset = (asset: {
+    clientId?: string;
+    clientName: string;
+    clientPhone?: string;
+    equipment: string;
+    brand: string;
+    model: string;
+    serialNumber: string;
+    notes: string;
+    remunerated: boolean;
+    valuePaid: number;
+    paymentMethod?: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira';
+    originId?: string;
+  }) => {
+    const newId = `ATV-${1000 + inserviceableAssets.length + 1}`;
+    const newAsset: InserviceableAsset = {
+      id: newId,
+      clientId: asset.clientId,
+      clientName: asset.clientName,
+      clientPhone: asset.clientPhone,
+      equipment: asset.equipment,
+      brand: asset.brand,
+      model: asset.model,
+      serialNumber: asset.serialNumber,
+      entryDate: new Date().toISOString().split('T')[0],
+      origin: asset.originId ? 'ordem_servico' : 'direto',
+      originId: asset.originId,
+      remunerated: asset.remunerated,
+      valuePaid: asset.valuePaid,
+      status: 'recebido',
+      notes: asset.notes
+    };
+
+    setInserviceableAssets(prev => [newAsset, ...prev]);
+
+    // If remunerated, post expense to financial manual accounts
+    if (asset.remunerated && asset.valuePaid > 0) {
+      handleAddManualAccount({
+        type: 'pagar',
+        description: `Compra de Sucata p/ Descarte - ${asset.equipment} (${asset.clientName})`,
+        category: 'Compra de Ativos para Sucata',
+        amount: asset.valuePaid,
+        dueDate: new Date().toISOString().split('T')[0],
+        paymentDate: new Date().toISOString().split('T')[0],
+        status: 'pago',
+        paymentMethod: asset.paymentMethod || 'dinheiro',
+        clientOrSupplierName: asset.clientName,
+        originId: newId
+      });
+    }
   };
 
   // Handler: Add client
@@ -500,6 +699,20 @@ export default function App() {
                 ELETRO<span className="text-indigo-400">OS</span>
               </div>
               <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Gestão Eletrônica</div>
+              
+              <div className="mt-3 flex">
+                {companyProfile.environment === 'producao' ? (
+                  <span className="inline-flex items-center gap-1 bg-emerald-950 text-emerald-400 border border-emerald-850 text-[9px] font-black uppercase px-2 py-0.5 rounded">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    PRODUÇÃO
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 bg-amber-950 text-amber-400 border border-amber-850 text-[9px] font-black uppercase px-2 py-0.5 rounded">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    HOMOLOGAÇÃO
+                  </span>
+                )}
+              </div>
             </div>
             
             <nav className="p-3 space-y-1 flex flex-col">
@@ -583,6 +796,17 @@ export default function App() {
               >
                 <Sparkles size={14} /> Catálogo de Serviços
               </button>
+
+              <button
+                onClick={() => setActiveTab('company')}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all text-left cursor-pointer ${
+                  activeTab === 'company' 
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' 
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Building2 size={14} /> Dados Fiscais & Empresa
+              </button>
               
               <div className="border-t border-slate-800/80 my-2" />
               
@@ -595,6 +819,17 @@ export default function App() {
                 }`}
               >
                 <Search size={14} /> Portal do Cliente
+              </button>
+
+              <button
+                onClick={() => setActiveTab('scrap')}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all text-left cursor-pointer ${
+                  activeTab === 'scrap' 
+                    ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20 shadow-rose-600/10' 
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <ShieldAlert size={14} /> Ativos Inservíveis
               </button>
             </nav>
 
@@ -661,6 +896,7 @@ export default function App() {
               products={products}
               setProducts={setProducts}
               serviceTemplates={serviceTemplates}
+              onDiscardAsset={handleDiscardAsset}
             />
           )}
 
@@ -721,6 +957,8 @@ export default function App() {
               setProducts={setProducts}
               purchases={purchases}
               onTriggerNotification={handleTriggerNotification}
+              manualAccounts={manualAccounts}
+              setManualAccounts={setManualAccounts}
             />
           )}
 
@@ -728,6 +966,22 @@ export default function App() {
             <ClientTracker
               orders={orders}
               onClientDecision={handleClientDecision}
+            />
+          )}
+
+          {activeTab === 'scrap' && (
+            <InserviceableAssetsView
+              assets={inserviceableAssets}
+              setAssets={setInserviceableAssets}
+              clients={clients}
+              onAddManualAccount={handleAddManualAccount}
+            />
+          )}
+
+          {activeTab === 'company' && (
+            <CompanyProfileView
+              companyProfile={companyProfile}
+              setCompanyProfile={setCompanyProfile}
             />
           )}
 

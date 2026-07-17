@@ -49,6 +49,8 @@ interface FinancialModuleViewProps {
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   purchases: ProductPurchase[];
   onTriggerNotification: (type: 'billing' | 'payment_pending') => void;
+  manualAccounts: FinancialAccountItem[];
+  setManualAccounts: React.Dispatch<React.SetStateAction<FinancialAccountItem[]>>;
 }
 
 export default function FinancialModuleView({
@@ -59,69 +61,12 @@ export default function FinancialModuleView({
   products,
   setProducts,
   purchases,
-  onTriggerNotification
+  onTriggerNotification,
+  manualAccounts,
+  setManualAccounts
 }: FinancialModuleViewProps) {
   // Financial sub-tab navigation
   const [activeSubTab, setActiveSubTab] = useState<'flow' | 'receivable' | 'payable' | 'pos'>('flow');
-
-  // Unified manual financial accounts (with localStorage persistence)
-  const [manualAccounts, setManualAccounts] = useState<FinancialAccountItem[]>(() => {
-    const saved = localStorage.getItem('eletroos_manual_accounts');
-    if (saved) return JSON.parse(saved);
-    
-    // Default seed data for a rich visual experience
-    return [
-      {
-        id: 'ACC-001',
-        type: 'pagar',
-        description: 'Aluguel do Galpão / Oficina',
-        category: 'Aluguel',
-        amount: 1200.00,
-        dueDate: '2026-07-10',
-        paymentDate: '2026-07-10',
-        status: 'pago',
-        paymentMethod: 'pix'
-      },
-      {
-        id: 'ACC-002',
-        type: 'pagar',
-        description: 'Fatura de Energia Elétrica Enel',
-        category: 'Utilidades',
-        amount: 345.80,
-        dueDate: '2026-07-15',
-        status: 'pendente'
-      },
-      {
-        id: 'ACC-003',
-        type: 'pagar',
-        description: 'Serviço de Internet Fibra',
-        category: 'Comunicações',
-        amount: 149.90,
-        dueDate: '2026-07-20',
-        status: 'pendente'
-      },
-      {
-        id: 'ACC-004',
-        type: 'receber',
-        description: 'Venda de Sucata de Cobre / Placas',
-        category: 'Reciclagem',
-        amount: 280.00,
-        dueDate: '2026-07-05',
-        paymentDate: '2026-07-05',
-        status: 'pago',
-        paymentMethod: 'dinheiro'
-      },
-      {
-        id: 'ACC-005',
-        type: 'receber',
-        description: 'Consultoria de Recuperação de Inversor',
-        category: 'Serviço Externo',
-        amount: 450.00,
-        dueDate: '2026-07-18',
-        status: 'pendente'
-      }
-    ];
-  });
 
   // POS sales state (with localStorage persistence)
   const [posSales, setPosSales] = useState<POSSale[]>(() => {
@@ -142,11 +87,6 @@ export default function FinancialModuleView({
       }
     ];
   });
-
-  // Sync state to local storage
-  useEffect(() => {
-    localStorage.setItem('eletroos_manual_accounts', JSON.stringify(manualAccounts));
-  }, [manualAccounts]);
 
   useEffect(() => {
     localStorage.setItem('eletroos_pos_sales', JSON.stringify(posSales));
@@ -246,7 +186,7 @@ export default function FinancialModuleView({
   };
 
   // Pre-determined Categories lists
-  const expenseCategories = ['Utilidades', 'Aluguel', 'Fornecedor', 'Comunicações', 'Impostos', 'Marketing', 'Outros'];
+  const expenseCategories = ['Utilidades', 'Aluguel', 'Fornecedor', 'Comunicações', 'Impostos', 'Marketing', 'Compra de Ativos para Sucata', 'Outros'];
   const revenueCategories = ['Venda OS', 'PDV', 'Reciclagem', 'Serviço Externo', 'Outros'];
 
   // Current Date Helper

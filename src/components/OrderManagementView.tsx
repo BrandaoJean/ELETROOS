@@ -14,7 +14,8 @@ import {
   Calendar,
   Layers,
   Sparkles,
-  ClipboardList
+  ClipboardList,
+  ShieldAlert
 } from 'lucide-react';
 import { ServiceOrder, PartItem, OSStatus, Client, Product, ServiceTemplate } from '../types';
 import { formatBRL } from '../utils';
@@ -31,6 +32,20 @@ interface OrderManagementViewProps {
   products?: Product[];
   setProducts?: React.Dispatch<React.SetStateAction<Product[]>>;
   serviceTemplates?: ServiceTemplate[];
+  onDiscardAsset?: (asset: {
+    clientId?: string;
+    clientName: string;
+    clientPhone?: string;
+    equipment: string;
+    brand: string;
+    model: string;
+    serialNumber: string;
+    notes: string;
+    remunerated: boolean;
+    valuePaid: number;
+    paymentMethod?: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira';
+    originId?: string;
+  }) => void;
 }
 
 export default function OrderManagementView({
@@ -43,13 +58,21 @@ export default function OrderManagementView({
   onPayOrder,
   products = [],
   setProducts,
-  serviceTemplates = []
+  serviceTemplates = [],
+  onDiscardAsset
 }: OrderManagementViewProps) {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [paymentFilter, setPaymentFilter] = useState<string>('todos');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+  // Disposal form states for active OS
+  const [isDisposalModalOpen, setIsDisposalModalOpen] = useState(false);
+  const [disposalNotes, setDisposalNotes] = useState('');
+  const [disposalRemunerated, setDisposalRemunerated] = useState(false);
+  const [disposalValue, setDisposalValue] = useState('0');
+  const [disposalPaymentMethod, setDisposalPaymentMethod] = useState<'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira'>('dinheiro');
 
   // New OS form states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -83,6 +106,29 @@ export default function OrderManagementView({
       setTempLabor(String(activeOS.laborCost));
     }
   }, [activeOS]);
+
+  // Unique list of past equipments of the selected client (for suggestion on new OS)
+  const clientEquipments = useMemo(() => {
+    if (!newClientId) return [];
+    const uniqueEquips: { equipment: string; brand: string; model: string; serialNumber: string }[] = [];
+    const seenKeys = new Set<string>();
+    
+    orders.forEach(o => {
+      if (o.clientId === newClientId) {
+        const key = `${o.equipment}-${o.brand}-${o.model}-${o.serialNumber}`.toLowerCase().trim();
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          uniqueEquips.push({
+            equipment: o.equipment,
+            brand: o.brand || '',
+            model: o.model || '',
+            serialNumber: o.serialNumber || ''
+          });
+        }
+      }
+    });
+    return uniqueEquips;
+  }, [newClientId, orders]);
 
   // Filtered list
   const filteredOrders = useMemo(() => {
@@ -185,6 +231,50 @@ export default function OrderManagementView({
       parts: updatedParts,
       totalCost: updatedTotalCost
     });
+  };
+
+  // Handler: Confirm disposal and send to scrap assets
+  const handleConfirmDisposal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeOS) return;
+
+    const value = disposalRemunerated ? parseFloat(disposalValue) || 0 : 0;
+    
+    if (onDiscardAsset) {
+      onDiscardAsset({
+        clientId: activeOS.clientId,
+        clientName: activeOS.clientName,
+        clientPhone: activeOS.clientPhone,
+        equipment: activeOS.equipment,
+        brand: activeOS.brand,
+        model: activeOS.model,
+        serialNumber: activeOS.serialNumber,
+        notes: disposalNotes || `Encaminhado para descarte ecológico a partir da OS ${activeOS.id}.`,
+        remunerated: disposalRemunerated,
+        valuePaid: value,
+        paymentMethod: disposalPaymentMethod,
+        originId: activeOS.id
+      });
+    }
+
+    // Add event log and technical note to the order
+    const updatedHistory = [
+      ...activeOS.history,
+      {
+        timestamp: new Date().toISOString(),
+        status: activeOS.status,
+        note: `Aparelho enviado para o Módulo de Ativos Inservíveis para descarte.${disposalRemunerated ? ` Reembolso de ${formatBRL(value)} pago ao cliente.` : ''}`
+      }
+    ];
+
+    onUpdateOrder(activeOS.id, {
+      history: updatedHistory,
+      technicalReport: `${activeOS.technicalReport || ''}\n[Descarte Solicitado] Equipamento inservível encaminhado para sucata.`.trim(),
+      observations: `${activeOS.observations || ''}\n[Descarte] Equipamento enviado para descarte em ${new Date().toLocaleDateString('pt-BR')}.`.trim()
+    });
+
+    setIsDisposalModalOpen(false);
+    alert(`Equipamento da OS ${activeOS.id} enviado para o Módulo de Ativos Inservíveis com sucesso!`);
   };
 
   // Handler: Update Diagnostic / Labor
@@ -719,6 +809,19 @@ export default function OrderManagementView({
                     <Printer size={13} /> Imprimir Orçamento
                   </button>
 
+                  <button
+                    onClick={() => {
+                      setDisposalNotes('');
+                      setDisposalRemunerated(false);
+                      setDisposalValue('0');
+                      setDisposalPaymentMethod('dinheiro');
+                      setIsDisposalModalOpen(true);
+                    }}
+                    className="px-3 py-2 border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <Trash2 size={13} /> Descartar Aparelho
+                  </button>
+
                   {activeOS.isPaid ? (
                     <span className="px-4 py-2 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-xs font-bold rounded-lg flex items-center gap-1">
                       <CheckCircle2 size={14} /> Pago e Quitado
@@ -781,7 +884,13 @@ export default function OrderManagementView({
                 <label className="block font-bold text-slate-600 mb-1">Selecionar Cliente Cadastrado:</label>
                 <select
                   value={newClientId}
-                  onChange={(e) => setNewClientId(e.target.value)}
+                  onChange={(e) => {
+                    setNewClientId(e.target.value);
+                    setNewEquipment('');
+                    setNewBrand('');
+                    setNewModel('');
+                    setNewSerial('');
+                  }}
                   className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
                 >
                   <option value="">Selecione o cliente...</option>
@@ -790,6 +899,32 @@ export default function OrderManagementView({
                   ))}
                 </select>
               </div>
+
+              {newClientId && clientEquipments.length > 0 && (
+                <div className="bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100/60">
+                  <label className="block text-[10px] font-bold text-indigo-800 uppercase mb-1">Aparelhos anteriores deste cliente:</label>
+                  <select
+                    onChange={(e) => {
+                      const idx = parseInt(e.target.value);
+                      if (!isNaN(idx) && clientEquipments[idx]) {
+                        const eq = clientEquipments[idx];
+                        setNewEquipment(eq.equipment);
+                        setNewBrand(eq.brand);
+                        setNewModel(eq.model);
+                        setNewSerial(eq.serialNumber);
+                      }
+                    }}
+                    className="w-full text-xs border border-indigo-200 rounded p-1.5 bg-white font-medium text-slate-700 focus:outline-none bg-white"
+                  >
+                    <option value="">-- Escolha um aparelho existente ou preencha abaixo --</option>
+                    {clientEquipments.map((eq, idx) => (
+                      <option key={idx} value={idx}>
+                        {eq.equipment} {eq.brand ? `• ${eq.brand}` : ''} {eq.model ? `• ${eq.model}` : ''} {eq.serialNumber ? `(S/N: ${eq.serialNumber})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -926,6 +1061,109 @@ export default function OrderManagementView({
           client={clients.find(c => c.id === activeOS.clientId) || null}
           onClose={() => setIsPrintModalOpen(false)}
         />
+      )}
+
+      {isDisposalModalOpen && activeOS && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-100 text-xs">
+            <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+              <h3 className="font-bold text-sm flex items-center gap-1.5">
+                <ShieldAlert size={16} className="text-rose-400" /> Confirmar Encaminhamento para Descarte / Sucata
+              </h3>
+              <button 
+                onClick={() => setIsDisposalModalOpen(false)}
+                className="text-slate-400 hover:text-white font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmDisposal} className="p-5 space-y-4 text-xs">
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <p className="font-bold text-slate-700">Aparelho a ser descartado:</p>
+                <p className="mt-0.5 text-slate-600 font-medium">
+                  {activeOS.equipment} • {activeOS.brand} {activeOS.model ? `(${activeOS.model})` : ''}
+                </p>
+                {activeOS.serialNumber && <p className="text-[10px] text-slate-400 font-mono mt-0.5">S/N: {activeOS.serialNumber}</p>}
+                <p className="text-[10px] text-indigo-600 font-bold mt-1">Proprietário: {activeOS.clientName}</p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Observações do descarte / Parecer Técnico:</label>
+                <textarea
+                  rows={2}
+                  required
+                  placeholder="Ex: Placa principal oxidada, sem conserto. Cliente optou por doar para sucata e descartar."
+                  value={disposalNotes}
+                  onChange={(e) => setDisposalNotes(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                />
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="font-bold text-slate-700">Comprar Sucata / Remunerar Cliente?</span>
+                    <span className="text-[10px] text-slate-400">Marque se você pagará algum valor ao cliente por esta sucata</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={disposalRemunerated}
+                    onChange={(e) => setDisposalRemunerated(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                  />
+                </div>
+
+                {disposalRemunerated && (
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                    <div>
+                      <label className="block font-bold text-slate-600 mb-1">Valor do Reembolso (R$):</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        required={disposalRemunerated}
+                        placeholder="Ex: 50.00"
+                        value={disposalValue}
+                        onChange={(e) => setDisposalValue(e.target.value)}
+                        className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-600 mb-1">Meio de Pagamento:</label>
+                      <select
+                        value={disposalPaymentMethod}
+                        onChange={(e) => setDisposalPaymentMethod(e.target.value as any)}
+                        className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                      >
+                        <option value="pix">PIX</option>
+                        <option value="dinheiro">Dinheiro em Espécie</option>
+                        <option value="cartao_debito">Cartão de Débito</option>
+                        <option value="carteira">Crédito p/ Cliente</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDisposalModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold transition-all shadow-sm cursor-pointer"
+                >
+                  Encaminhar p/ Descarte
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
     </div>
