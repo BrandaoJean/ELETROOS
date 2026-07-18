@@ -1118,6 +1118,7 @@ export default function App() {
           {activeTab === 'mei' && (
             <MeiReportView 
               orders={orders} 
+              companyProfile={companyProfile}
             />
           )}
 

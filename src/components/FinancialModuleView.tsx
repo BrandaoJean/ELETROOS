@@ -189,8 +189,10 @@ export default function FinancialModuleView({
   const expenseCategories = ['Utilidades', 'Aluguel', 'Fornecedor', 'Comunicações', 'Impostos', 'Marketing', 'Compra de Ativos para Sucata', 'Outros'];
   const revenueCategories = ['Venda OS', 'PDV', 'Reciclagem', 'Serviço Externo', 'Outros'];
 
-  // Current Date Helper
-  const currentDateStr = '2026-07-14';
+  // Current Date Helper - dynamically set to today's date
+  const currentDateStr = useMemo(() => {
+    return new Date().toISOString().split('T')[0];
+  }, []);
 
   // Helper to check if a due date is past due
   const getAccountStatus = (dueDate: string, currentStatus: 'pendente' | 'pago'): 'pago' | 'pendente' | 'atrasado' => {

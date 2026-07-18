@@ -10,16 +10,21 @@ import {
   Download,
   AlertCircle
 } from 'lucide-react';
-import { ServiceOrder } from '../types';
+import { ServiceOrder, CompanyProfile } from '../types';
 import { formatBRL } from '../utils';
 
 interface MeiReportViewProps {
   orders: ServiceOrder[];
+  companyProfile: CompanyProfile;
 }
 
-export default function MeiReportView({ orders }: MeiReportViewProps) {
-  const [selectedMonth, setSelectedMonth] = useState<number>(6); // Default: July (6)
-  const currentYear = 2026;
+export default function MeiReportView({ orders, companyProfile }: MeiReportViewProps) {
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => {
+    return new Date().getMonth();
+  });
+  const currentYear = useMemo(() => {
+    return new Date().getFullYear();
+  }, []);
 
   const monthNames = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -143,11 +148,11 @@ export default function MeiReportView({ orders }: MeiReportViewProps) {
             </div>
             <div>
               <p className="font-bold uppercase text-slate-500">CNPJ do Contribuinte</p>
-              <p className="font-semibold text-slate-800">22.888.777/0001-99</p>
+              <p className="font-semibold text-slate-800">{companyProfile.cnpj || '12.345.678/0001-90'}</p>
             </div>
             <div>
               <p className="font-bold uppercase text-slate-500">Nome da Empresa MEI</p>
-              <p className="font-semibold text-slate-800">ELETRO COMERCIO E ASSISTENCIA MEI</p>
+              <p className="font-semibold text-slate-800">{companyProfile.razaoSocial || companyProfile.nomeFantasia || 'EletroOS Eletrônica e Manutenção MEI'}</p>
             </div>
           </div>
 
@@ -211,12 +216,14 @@ export default function MeiReportView({ orders }: MeiReportViewProps) {
             <div className="text-center space-y-1">
               <p>Local e Data:</p>
               <div className="border-b border-slate-400 h-6"></div>
-              <p className="text-slate-500 font-medium">São Paulo, SP, ____ de ______________ de 2026.</p>
+              <p className="text-slate-500 font-medium">
+                {companyProfile.city || 'São Paulo'}, {companyProfile.state || 'SP'}, ____ de ______________ de {currentYear}.
+              </p>
             </div>
             <div className="text-center space-y-1">
               <p>Assinatura do Empreendedor:</p>
               <div className="border-b border-slate-400 h-6"></div>
-              <p className="text-slate-500 font-medium">ELETRO COMERCIO E ASSISTENCIA MEI</p>
+              <p className="text-slate-500 font-medium">{companyProfile.razaoSocial || companyProfile.nomeFantasia || 'EletroOS Eletrônica e Manutenção MEI'}</p>
             </div>
           </div>
 

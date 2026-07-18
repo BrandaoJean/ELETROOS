@@ -177,7 +177,11 @@ export default function OrderManagementView({
   const [newPhysicalCondition, setNewPhysicalCondition] = useState('');
   const [newObservations, setNewObservations] = useState('');
   const [newLaborCost, setNewLaborCost] = useState('0');
-  const [dueDate, setDueDate] = useState('2026-07-20');
+  const [dueDate, setDueDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  });
 
   // Diagnostics and parts editor states (for selected OS)
   const [tempReport, setTempReport] = useState('');

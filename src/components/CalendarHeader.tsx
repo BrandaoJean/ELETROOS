@@ -25,11 +25,13 @@ interface CalendarHeaderProps {
 type CalendarViewMode = 'monthly' | 'weekly' | 'daily';
 
 export default function CalendarHeader({ orders, onSelectOrder }: CalendarHeaderProps) {
-  // We place today around Tuesday, July 14, 2026 (matching system database date)
-  const todayStr = '2026-07-14';
+  // Focus and default on today's current date dynamically
+  const todayStr = useMemo(() => {
+    return new Date().toISOString().split('T')[0];
+  }, []);
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
-  const [currentMonth, setCurrentMonth] = useState<number>(6); // July (0-indexed base)
-  const [currentYear, setCurrentYear] = useState<number>(2026);
+  const [currentMonth, setCurrentMonth] = useState<number>(() => new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState<number>(() => new Date().getFullYear());
   const [viewMode, setViewMode] = useState<CalendarViewMode>('monthly');
 
   const monthNames = [
