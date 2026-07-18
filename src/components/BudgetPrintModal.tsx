@@ -49,7 +49,7 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
 
   const renderDocumentCopy = (copyType: 'oficina' | 'cliente') => {
     return (
-      <div className={`space-y-4 print:space-y-3 flex-1 flex flex-col justify-between ${
+      <div className={`space-y-4 print:space-y-3 flex-1 flex flex-col justify-between print-column-copy ${
         copyType === 'cliente' 
           ? 'lg:pl-6 print:pl-5' 
           : 'lg:pr-6 print:pr-5'
@@ -447,7 +447,9 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
                 size: A4 landscape !important;
                 margin: 5mm 6mm !important;
               }
-              body {
+              html, body {
+                height: 210mm !important;
+                overflow: hidden !important;
                 background: #ffffff !important;
                 color: #000000 !important;
                 -webkit-print-color-adjust: exact !important;
@@ -458,9 +460,10 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
                 left: 0 !important;
                 top: 0 !important;
                 width: 100% !important;
-                height: auto !important;
+                height: 100% !important;
                 background: white !important;
                 padding: 0 !important;
+                overflow: hidden !important;
               }
               .print\\:hidden, .print-hidden {
                 display: none !important;
@@ -470,9 +473,63 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
                 box-shadow: none !important;
                 padding: 0 !important;
                 margin: 0 !important;
-                width: 100% !important;
-                max-width: 100% !important;
+                width: 285mm !important;
+                max-width: 285mm !important;
+                height: 198mm !important;
                 background: white !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+              }
+              .print-side-by-side-grid {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 30px !important;
+                width: 100% !important;
+                height: 100% !important;
+                box-sizing: border-box !important;
+                position: relative !important;
+                align-items: stretch !important;
+              }
+              .print-column-copy {
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: space-between !important;
+                height: 100% !important;
+                box-sizing: border-box !important;
+                position: relative !important;
+              }
+              .print-divider-wrapper {
+                position: absolute !important;
+                left: 50% !important;
+                top: 0 !important;
+                bottom: 0 !important;
+                transform: translateX(-50%) !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: space-between !important;
+                height: 100% !important;
+                pointer-events: none !important;
+                border: none !important;
+              }
+              /* Sub-elements override for margins and font spacing */
+              .print-column-copy h1, 
+              .print-column-copy p, 
+              .print-column-copy table, 
+              .print-column-copy tr, 
+              .print-column-copy td, 
+              .print-column-copy th {
+                position: relative !important;
+                display: block !important;
+              }
+              .print-column-copy table {
+                display: table !important;
+                width: 100% !important;
+              }
+              .print-column-copy tr {
+                display: table-row !important;
+              }
+              .print-column-copy td, .print-column-copy th {
+                display: table-cell !important;
               }
             }
           `}</style>
@@ -482,7 +539,7 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
             className="bg-white border border-slate-200 shadow-xl p-6 lg:p-8 w-full max-w-6xl mx-auto rounded-xl font-sans text-xs text-slate-800 relative print:border-none print:shadow-none print:p-0 print:my-0 print:max-w-none"
           >
             {/* Side-by-side Layout Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 relative divide-y lg:divide-y-0 lg:divide-x lg:divide-dashed divide-slate-350 print:grid-cols-2 print:gap-10 print:divide-y-0 print:divide-x print:divide-dashed print:divide-slate-400 print:items-stretch">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 relative divide-y lg:divide-y-0 lg:divide-x lg:divide-dashed divide-slate-350 print:grid-cols-2 print:gap-10 print:divide-y-0 print:divide-x print:divide-dashed print:divide-slate-400 print:items-stretch print-side-by-side-grid">
               {/* Copy 1: Via da Oficina (Eletrônica) */}
               {renderDocumentCopy('oficina')}
 
@@ -491,7 +548,7 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
             </div>
 
             {/* Dotted cutting divider line with scissors icon for on-screen decoration */}
-            <div className="hidden lg:flex absolute left-1/2 top-0 bottom-0 -translate-x-1/2 flex-col items-center justify-between py-6 pointer-events-none print:flex">
+            <div className="hidden lg:flex absolute left-1/2 top-0 bottom-0 -translate-x-1/2 flex-col items-center justify-between py-6 pointer-events-none print:flex print-divider-wrapper">
               <div className="border-l border-dashed border-slate-300 h-full w-0 flex items-center justify-center relative">
                 <span className="absolute bg-white px-2 py-0.5 border border-slate-200 rounded-md text-[8px] font-bold text-slate-400 flex items-center gap-1 shadow-xs uppercase tracking-wider rotate-90 lg:rotate-0 print:border-slate-300">
                   ✂️ Recorte
