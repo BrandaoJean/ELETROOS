@@ -46,6 +46,7 @@ interface OrderManagementViewProps {
     paymentMethod?: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira';
     originId?: string;
   }) => void;
+  onAddClient?: (client: Omit<Client, 'id' | 'createdAt'>) => Client;
 }
 
 export default function OrderManagementView({
@@ -59,7 +60,8 @@ export default function OrderManagementView({
   products = [],
   setProducts,
   serviceTemplates = [],
-  onDiscardAsset
+  onDiscardAsset,
+  onAddClient
 }: OrderManagementViewProps) {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -77,6 +79,96 @@ export default function OrderManagementView({
   // New OS form states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newClientId, setNewClientId] = useState('');
+  const [clientSearchText, setClientSearchText] = useState('');
+  const [isQuickAddClientOpen, setIsQuickAddClientOpen] = useState(false);
+
+  // Quick Client registration states
+  const [quickClientName, setQuickClientName] = useState('');
+  const [quickClientPhone, setQuickClientPhone] = useState('');
+  const [quickClientEmail, setQuickClientEmail] = useState('');
+  const [quickClientCpf, setQuickClientCpf] = useState('');
+  const [quickClientCep, setQuickClientCep] = useState('');
+  const [quickClientAddress, setQuickClientAddress] = useState('');
+  const [quickClientNumber, setQuickClientNumber] = useState('');
+  const [quickClientComplement, setQuickClientComplement] = useState('');
+  const [quickClientNeighborhood, setQuickClientNeighborhood] = useState('');
+  const [quickClientCity, setQuickClientCity] = useState('');
+  const [quickClientState, setQuickClientState] = useState('');
+  const [isFetchingQuickCep, setIsFetchingQuickCep] = useState(false);
+
+  const fetchQuickAddressByCep = async (zipCode: string) => {
+    const cleanCep = zipCode.replace(/\D/g, '');
+    if (cleanCep.length !== 8) return;
+    setIsFetchingQuickCep(true);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      if (data && !data.erro) {
+        setQuickClientAddress(data.logradouro || '');
+        setQuickClientNeighborhood(data.bairro || '');
+        setQuickClientCity(data.localidade || '');
+        setQuickClientState(data.uf || '');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsFetchingQuickCep(false);
+    }
+  };
+
+  const handleOpenQuickAddClient = (initialName: string) => {
+    setQuickClientName(initialName);
+    setQuickClientPhone('');
+    setQuickClientEmail('');
+    setQuickClientCpf('');
+    setQuickClientCep('');
+    setQuickClientAddress('');
+    setQuickClientNumber('');
+    setQuickClientComplement('');
+    setQuickClientNeighborhood('');
+    setQuickClientCity('');
+    setQuickClientState('');
+    setIsQuickAddClientOpen(true);
+  };
+
+  const handleSaveQuickClient = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickClientName.trim()) return;
+
+    if (onAddClient) {
+      const createdClient = onAddClient({
+        name: quickClientName,
+        phone: quickClientPhone,
+        email: quickClientEmail,
+        cpf: quickClientCpf,
+        walletBalance: 0,
+        cep: quickClientCep,
+        address: quickClientAddress,
+        number: quickClientNumber,
+        complement: quickClientComplement,
+        neighborhood: quickClientNeighborhood,
+        city: quickClientCity,
+        state: quickClientState
+      });
+
+      if (createdClient && createdClient.id) {
+        setNewClientId(createdClient.id);
+        setClientSearchText(createdClient.name);
+      }
+    }
+    setIsQuickAddClientOpen(false);
+  };
+
+  const filteredClientsForOS = useMemo(() => {
+    if (!clientSearchText.trim()) return clients;
+    const q = clientSearchText.toLowerCase();
+    return clients.filter(c => 
+      c.name.toLowerCase().includes(q) || 
+      (c.phone && c.phone.toLowerCase().includes(q)) || 
+      (c.cpf && c.cpf.toLowerCase().includes(q))
+    );
+  }, [clients, clientSearchText]);
+
   const [newEquipment, setNewEquipment] = useState('');
   const [newBrand, setNewBrand] = useState('');
   const [newModel, setNewModel] = useState('');
@@ -882,22 +974,88 @@ export default function OrderManagementView({
               
               <div>
                 <label className="block font-bold text-slate-600 mb-1">Selecionar Cliente Cadastrado:</label>
-                <select
-                  value={newClientId}
-                  onChange={(e) => {
-                    setNewClientId(e.target.value);
-                    setNewEquipment('');
-                    setNewBrand('');
-                    setNewModel('');
-                    setNewSerial('');
-                  }}
-                  className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
-                >
-                  <option value="">Selecione o cliente...</option>
-                  {clients.map(c => (
-                    <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
-                  ))}
-                </select>
+                
+                {newClientId ? (
+                  <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg flex justify-between items-center text-xs">
+                    <div>
+                      <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Cliente Selecionado</p>
+                      <p className="font-bold text-slate-800 mt-0.5">
+                        {clients.find(c => c.id === newClientId)?.name || 'Cliente'}
+                      </p>
+                      <p className="text-slate-500 text-[11px]">
+                        {clients.find(c => c.id === newClientId)?.phone || ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewClientId('');
+                        setClientSearchText('');
+                      }}
+                      className="px-2 py-1 border border-slate-200 hover:border-slate-300 hover:bg-slate-100 text-slate-600 font-bold rounded transition-colors text-[10px] cursor-pointer"
+                    >
+                      Alterar Cliente
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Digite o nome, CPF ou telefone para buscar..."
+                        value={clientSearchText}
+                        onChange={(e) => setClientSearchText(e.target.value)}
+                        className="w-full border border-slate-200 rounded-lg p-2 pr-8 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                      />
+                      {clientSearchText && (
+                        <button
+                          type="button"
+                          onClick={() => setClientSearchText('')}
+                          className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 font-bold"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg bg-white divide-y divide-slate-100 shadow-sm">
+                      {filteredClientsForOS.length === 0 ? (
+                        <div className="p-4 text-center">
+                          <p className="text-slate-500 font-medium">Nenhum cliente cadastrado com esse nome.</p>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenQuickAddClient(clientSearchText)}
+                            className="mt-2.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <Plus size={11} /> Cadastrar "{clientSearchText}"
+                          </button>
+                        </div>
+                      ) : (
+                        filteredClientsForOS.map(c => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setNewClientId(c.id);
+                              setClientSearchText(c.name);
+                              setNewEquipment('');
+                              setNewBrand('');
+                              setNewModel('');
+                              setNewSerial('');
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-indigo-50 text-xs flex justify-between items-center transition-colors cursor-pointer"
+                          >
+                            <div>
+                              <span className="font-bold text-slate-800">{c.name}</span>
+                              {c.cpf && <span className="text-slate-400 ml-2 font-mono text-[10px]">CPF: {c.cpf}</span>}
+                            </div>
+                            <span className="text-slate-500 font-medium">{c.phone}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {newClientId && clientEquipments.length > 0 && (
@@ -1139,7 +1297,7 @@ export default function OrderManagementView({
                         <option value="pix">PIX</option>
                         <option value="dinheiro">Dinheiro em Espécie</option>
                         <option value="cartao_debito">Cartão de Débito</option>
-                        <option value="carteira">Crédito p/ Cliente</option>
+                        <option value="carteira">Crédito para Cliente</option>
                       </select>
                     </div>
                   </div>
@@ -1158,7 +1316,183 @@ export default function OrderManagementView({
                   type="submit"
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold transition-all shadow-sm cursor-pointer"
                 >
-                  Encaminhar p/ Descarte
+                  Encaminhar para Descarte
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Client Modal (on top of Create OS Modal) */}
+      {isQuickAddClientOpen && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-100 max-h-[90vh] flex flex-col">
+            <div className="bg-indigo-600 text-white p-4 flex justify-between items-center shrink-0">
+              <h3 className="font-bold text-sm flex items-center gap-1.5">
+                <Plus size={16} /> Cadastrar Novo Cliente
+              </h3>
+              <button 
+                onClick={() => setIsQuickAddClientOpen(false)}
+                className="text-white/80 hover:text-white font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveQuickClient} className="p-5 space-y-3 text-xs overflow-y-auto flex-1">
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Nome Completo *:</label>
+                <input
+                  type="text"
+                  required
+                  value={quickClientName}
+                  onChange={(e) => setQuickClientName(e.target.value)}
+                  placeholder="Nome do cliente"
+                  className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">Telefone *:</label>
+                  <input
+                    type="text"
+                    required
+                    value={quickClientPhone}
+                    onChange={(e) => setQuickClientPhone(e.target.value)}
+                    placeholder="(00) 00000-0000"
+                    className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">CPF (opcional):</label>
+                  <input
+                    type="text"
+                    value={quickClientCpf}
+                    onChange={(e) => setQuickClientCpf(e.target.value)}
+                    placeholder="000.000.000-00"
+                    className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Email (opcional):</label>
+                <input
+                  type="email"
+                  value={quickClientEmail}
+                  onChange={(e) => setQuickClientEmail(e.target.value)}
+                  placeholder="cliente@email.com"
+                  className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                />
+              </div>
+
+              {/* Address Section */}
+              <div className="border-t border-slate-100 pt-3 space-y-3">
+                <p className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">Endereço (Opcional)</p>
+                
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-1">
+                    <label className="block font-bold text-slate-600 mb-1">CEP:</label>
+                    <input
+                      type="text"
+                      value={quickClientCep}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setQuickClientCep(val);
+                        if (val.replace(/\D/g, '').length === 8) {
+                          fetchQuickAddressByCep(val);
+                        }
+                      }}
+                      onBlur={() => fetchQuickAddressByCep(quickClientCep)}
+                      placeholder="00000-000"
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">Logradouro:</label>
+                    <input
+                      type="text"
+                      value={quickClientAddress}
+                      onChange={(e) => setQuickClientAddress(e.target.value)}
+                      placeholder="Rua, Av, etc."
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Número:</label>
+                    <input
+                      type="text"
+                      value={quickClientNumber}
+                      onChange={(e) => setQuickClientNumber(e.target.value)}
+                      placeholder="Nº"
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">Complemento:</label>
+                    <input
+                      type="text"
+                      value={quickClientComplement}
+                      onChange={(e) => setQuickClientComplement(e.target.value)}
+                      placeholder="Apto, Sala, etc."
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-1">
+                    <label className="block font-bold text-slate-600 mb-1">Bairro:</label>
+                    <input
+                      type="text"
+                      value={quickClientNeighborhood}
+                      onChange={(e) => setQuickClientNeighborhood(e.target.value)}
+                      placeholder="Bairro"
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                    />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="block font-bold text-slate-600 mb-1">Cidade:</label>
+                    <input
+                      type="text"
+                      value={quickClientCity}
+                      onChange={(e) => setQuickClientCity(e.target.value)}
+                      placeholder="Cidade"
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                    />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="block font-bold text-slate-600 mb-1">Estado (UF):</label>
+                    <input
+                      type="text"
+                      maxLength={2}
+                      value={quickClientState}
+                      onChange={(e) => setQuickClientState(e.target.value)}
+                      placeholder="UF"
+                      className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickAddClientOpen(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition-all shadow-sm cursor-pointer"
+                >
+                  Salvar Cliente
                 </button>
               </div>
             </form>

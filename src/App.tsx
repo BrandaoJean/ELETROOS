@@ -504,7 +504,7 @@ export default function App() {
   };
 
   // Handler: Add client
-  const handleAddClient = (newClientFields: Omit<Client, 'id' | 'createdAt'>) => {
+  const handleAddClient = (newClientFields: Omit<Client, 'id' | 'createdAt'>): Client => {
     const newId = `C-00${clients.length + 1}`;
     const newClient: Client = {
       ...newClientFields,
@@ -513,6 +513,7 @@ export default function App() {
     };
     setClients(prev => [...prev, newClient]);
     alert(`Cliente ${newClient.name} cadastrado com sucesso!`);
+    return newClient;
   };
 
   // Handler: Update client details
@@ -1069,6 +1070,7 @@ export default function App() {
               setProducts={setProducts}
               serviceTemplates={serviceTemplates}
               onDiscardAsset={handleDiscardAsset}
+              onAddClient={handleAddClient}
             />
           )}
 
