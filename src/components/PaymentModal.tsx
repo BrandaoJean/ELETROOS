@@ -21,7 +21,12 @@ interface PaymentModalProps {
   order: ServiceOrder;
   clients: Client[];
   onClose: () => void;
-  onConfirmPayment: (orderId: string, payments: PaymentItem[], updatedWalletBalance?: number) => void;
+  onConfirmPayment: (
+    orderId: string,
+    payments: PaymentItem[],
+    updatedWalletBalance?: number,
+    updatedEquipmentDetails?: { equipment: string; brand: string; model: string; serialNumber: string }
+  ) => void;
 }
 
 export default function PaymentModal({
@@ -40,6 +45,13 @@ export default function PaymentModal({
   const [amountInput, setAmountInput] = useState<string>('');
   const [addedPayments, setAddedPayments] = useState<PaymentItem[]>([]);
   const [paymentFinished, setPaymentFinished] = useState(false);
+
+  // Editable equipment states
+  const [equipment, setEquipment] = useState(order.equipment || '');
+  const [brand, setBrand] = useState(order.brand || '');
+  const [model, setModel] = useState(order.model || '');
+  const [serialNumber, setSerialNumber] = useState(order.serialNumber || '');
+  const [intakeError, setIntakeError] = useState('');
 
   // Installment states for Carteira Própria
   const [isInstallment, setIsInstallment] = useState(false);
@@ -153,6 +165,12 @@ export default function PaymentModal({
 
   // Handler: Confirm full settlement
   const handleFinishPayment = () => {
+    if (!equipment.trim()) {
+      setIntakeError('Por favor, preencha o nome do equipamento para confirmar a entrega.');
+      return;
+    }
+    setIntakeError('');
+
     if (Math.abs(totalPaid - order.totalCost) > 0.05) {
       alert(`Para finalizar, o total pago (${formatBRL(totalPaid)}) deve ser igual ao total da OS (${formatBRL(order.totalCost)}).`);
       return;
@@ -165,7 +183,12 @@ export default function PaymentModal({
       updatedWalletBalance = client.walletBalance - walletUsed.amount;
     }
 
-    onConfirmPayment(order.id, addedPayments, updatedWalletBalance);
+    onConfirmPayment(order.id, addedPayments, updatedWalletBalance, {
+      equipment: equipment.trim(),
+      brand: brand.trim(),
+      model: model.trim(),
+      serialNumber: serialNumber.trim()
+    });
     setPaymentFinished(true);
   };
 
@@ -191,12 +214,12 @@ export default function PaymentModal({
     return `*ELETRO OS - RECIBO DE PAGAMENTO*\n\n` +
       `Olá, *${client.name}*!\n` +
       `Confirmamos a liquidação da *${order.id}*.\n\n` +
-      `*Aparelho:* ${order.equipment} ${order.brand} ${order.model}\n` +
+      `*Aparelho:* ${equipment} ${brand} ${model}\n` +
       `*Valor Total:* ${formatBRL(order.totalCost)}\n\n` +
       `*Detalhamento de Pagamento:*\n${paymentMethodsList}\n\n` +
       `Seu aparelho já está liberado para retirada na nossa oficina eletrônica.\n` +
       `Muito obrigado pela confiança! 🛠️⚡`;
-  }, [order, client, addedPayments]);
+  }, [order, client, addedPayments, equipment, brand, model]);
 
   const whatsappLink = useMemo(() => {
     if (!client) return '';
@@ -252,6 +275,72 @@ export default function PaymentModal({
                 <strong className="font-bold text-amber-950">{formatBRL(client.walletBalance)}</strong>
               </div>
             )}
+
+            {/* Editable Equipment Intake section to validate device details */}
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 space-y-3">
+              <p className="font-bold text-slate-700 uppercase text-[9px] tracking-wider flex items-center gap-1">
+                🔧 Confirmar / Atualizar Detalhes do Aparelho
+              </p>
+              
+              {intakeError && (
+                <p className="text-rose-600 font-bold text-[10px] bg-rose-50 p-1.5 rounded border border-rose-100 animate-pulse" id="intake-error-msg">
+                  ⚠️ {intakeError}
+                </p>
+              )}
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label htmlFor="intake-equipment-input" className="block text-[10px] font-bold text-slate-500 mb-0.5">Equipamento:</label>
+                  <input
+                    id="intake-equipment-input"
+                    type="text"
+                    value={equipment}
+                    onChange={(e) => {
+                      setEquipment(e.target.value);
+                      setIntakeError('');
+                    }}
+                    placeholder="Tipo de Equipamento"
+                    className="w-full border border-slate-200 rounded p-1.5 focus:ring-1 focus:ring-indigo-500 bg-white"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="intake-brand-input" className="block text-[10px] font-bold text-slate-500 mb-0.5">Marca:</label>
+                  <input
+                    id="intake-brand-input"
+                    type="text"
+                    value={brand}
+                    onChange={(e) => setBrand(e.target.value)}
+                    placeholder="Marca"
+                    className="w-full border border-slate-200 rounded p-1.5 focus:ring-1 focus:ring-indigo-500 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label htmlFor="intake-model-input" className="block text-[10px] font-bold text-slate-500 mb-0.5">Modelo:</label>
+                  <input
+                    id="intake-model-input"
+                    type="text"
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder="Modelo"
+                    className="w-full border border-slate-200 rounded p-1.5 focus:ring-1 focus:ring-indigo-500 bg-white"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="intake-serial-input" className="block text-[10px] font-bold text-slate-500 mb-0.5">Número de Série:</label>
+                  <input
+                    id="intake-serial-input"
+                    type="text"
+                    value={serialNumber}
+                    onChange={(e) => setSerialNumber(e.target.value)}
+                    placeholder="S/N"
+                    className="w-full border border-slate-200 rounded p-1.5 focus:ring-1 focus:ring-indigo-500 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
 
             {/* Add Payment Method block */}
             <div className="space-y-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
@@ -450,7 +539,7 @@ export default function PaymentModal({
               </div>
               <div className="flex justify-between">
                 <span>EQUIPAMENTO:</span>
-                <span className="font-bold">{order.equipment.toUpperCase()}</span>
+                <span className="font-bold">{equipment.toUpperCase()}</span>
               </div>
               <div className="flex justify-between">
                 <span>OS NÚMERO:</span>

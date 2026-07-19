@@ -580,7 +580,12 @@ export default function App() {
   };
 
   // Handler: Multi-split Payment settlement confirmation
-  const handleConfirmPayment = (orderId: string, payments: PaymentItem[], updatedWalletBalance?: number) => {
+  const handleConfirmPayment = (
+    orderId: string,
+    payments: PaymentItem[],
+    updatedWalletBalance?: number,
+    updatedEquipmentDetails?: { equipment: string; brand: string; model: string; serialNumber: string }
+  ) => {
     // 1. Mark order as paid and transition status
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
@@ -597,7 +602,8 @@ export default function App() {
           payments: payments,
           paymentDate: new Date().toISOString(),
           history: [...o.history, newHistoryEvent],
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          ...(updatedEquipmentDetails || {})
         };
       }
       return o;
@@ -1171,8 +1177,8 @@ export default function App() {
           order={activePaymentOS}
           clients={clients}
           onClose={() => setActivePaymentOSId(null)}
-          onConfirmPayment={(orderId, payments, balance) => {
-            handleConfirmPayment(orderId, payments, balance);
+          onConfirmPayment={(orderId, payments, balance, updatedEquip) => {
+            handleConfirmPayment(orderId, payments, balance, updatedEquip);
             setActivePaymentOSId(null);
           }}
         />

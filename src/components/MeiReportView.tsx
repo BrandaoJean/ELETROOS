@@ -31,6 +31,22 @@ export default function MeiReportView({ orders, companyProfile }: MeiReportViewP
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
 
+  const defaultLocalData = useMemo(() => {
+    const city = companyProfile.city || 'São Paulo';
+    const state = companyProfile.state || 'SP';
+    return `${city}, ${state}, ${new Date().getDate()} de ${monthNames[selectedMonth]} de ${currentYear}`;
+  }, [companyProfile.city, companyProfile.state, selectedMonth, currentYear]);
+
+  const defaultSignature = useMemo(() => {
+    return companyProfile.razaoSocial || companyProfile.nomeFantasia || 'EletroOS Eletrônica e Manutenção MEI';
+  }, [companyProfile.razaoSocial, companyProfile.nomeFantasia]);
+
+  const [userLocalData, setUserLocalData] = useState<string>('');
+  const [userSignature, setUserSignature] = useState<string>('');
+
+  const displayLocalData = userLocalData !== '' ? userLocalData : defaultLocalData;
+  const displaySignature = userSignature !== '' ? userSignature : defaultSignature;
+
   // Calculate MEI report sections based on paid orders in the selected month
   const meiReportData = useMemo(() => {
     let receitaComercioComNF = 0; // Parts sold with invoice (simulated split)
@@ -214,16 +230,26 @@ export default function MeiReportView({ orders, companyProfile }: MeiReportViewP
           {/* Signatures Footer */}
           <div className="grid grid-cols-2 gap-8 pt-8 text-[10px]">
             <div className="text-center space-y-1">
-              <p>Local e Data:</p>
-              <div className="border-b border-slate-400 h-6"></div>
-              <p className="text-slate-500 font-medium">
-                {companyProfile.city || 'São Paulo'}, {companyProfile.state || 'SP'}, ____ de ______________ de {currentYear}.
-              </p>
+              <label htmlFor="mei-local-data-input" className="block font-bold text-slate-700">Local e Data:</label>
+              <input
+                id="mei-local-data-input"
+                type="text"
+                value={displayLocalData}
+                onChange={(e) => setUserLocalData(e.target.value)}
+                className="w-full text-center border-b border-slate-350 focus:border-indigo-600 focus:outline-hidden py-1 text-[11px] text-slate-800 bg-transparent print:border-b print:border-black print:text-black font-medium"
+                placeholder="São Paulo, SP, ____ de ______________ de ____."
+              />
             </div>
             <div className="text-center space-y-1">
-              <p>Assinatura do Empreendedor:</p>
-              <div className="border-b border-slate-400 h-6"></div>
-              <p className="text-slate-500 font-medium">{companyProfile.razaoSocial || companyProfile.nomeFantasia || 'EletroOS Eletrônica e Manutenção MEI'}</p>
+              <label htmlFor="mei-signature-input" className="block font-bold text-slate-700">Assinatura do Empreendedor:</label>
+              <input
+                id="mei-signature-input"
+                type="text"
+                value={displaySignature}
+                onChange={(e) => setUserSignature(e.target.value)}
+                className="w-full text-center border-b border-slate-350 focus:border-indigo-600 focus:outline-hidden py-1 text-[11px] text-slate-800 bg-transparent print:border-b print:border-black print:text-black font-medium"
+                placeholder="Assinatura do Empreendedor"
+              />
             </div>
           </div>
 

@@ -189,6 +189,7 @@ export default function OrderManagementView({
   const [partName, setPartName] = useState('');
   const [partQty, setPartQty] = useState(1);
   const [partPrice, setPartPrice] = useState('0');
+  const [statusError, setStatusError] = useState('');
 
   // Active Selected OS
   const activeOS = useMemo(() => {
@@ -200,6 +201,7 @@ export default function OrderManagementView({
     if (activeOS) {
       setTempReport(activeOS.technicalReport || '');
       setTempLabor(String(activeOS.laborCost));
+      setStatusError('');
     }
   }, [activeOS]);
 
@@ -249,6 +251,7 @@ export default function OrderManagementView({
   const handleAddPart = () => {
     if (!activeOS || !partName || partQty <= 0) return;
     
+    setStatusError('');
     // Check stock if product is from catalog
     const matchedProduct = products.find(p => p.name === partName);
     if (matchedProduct && setProducts) {
@@ -377,6 +380,11 @@ export default function OrderManagementView({
   const handleSaveDiagnostic = () => {
     if (!activeOS) return;
     const labor = parseFloat(tempLabor) || 0;
+    
+    if (labor > 0) {
+      setStatusError('');
+    }
+
     const totalParts = activeOS.parts.reduce((sum, p) => sum + (p.quantity * p.unitPrice), 0);
     const updatedTotalCost = totalParts + labor;
 
@@ -422,6 +430,16 @@ export default function OrderManagementView({
   const handleStatusChange = (newStatus: OSStatus) => {
     if (!activeOS) return;
     
+    setStatusError('');
+    if (newStatus === 'orcamento_aprovado') {
+      const partsCost = activeOS.parts.reduce((sum, p) => sum + (p.quantity * p.unitPrice), 0);
+      const totalEstimatedCost = activeOS.laborCost + partsCost;
+      if (totalEstimatedCost <= 0) {
+        setStatusError('O orçamento não pode ser aprovado/finalizado com valor total zerado. Por favor, adicione o valor da mão de obra ou peças.');
+        return;
+      }
+    }
+
     let finalStatus = newStatus;
     let statusNote = `Status da Ordem de Serviço atualizado para: ${newStatus.replace('_', ' ').toUpperCase()}`;
 
@@ -643,6 +661,13 @@ export default function OrderManagementView({
                   </select>
                 </div>
               </div>
+
+              {statusError && (
+                <div className="bg-rose-50 border-b border-rose-150 px-5 py-3 text-rose-700 text-xs font-semibold flex items-center gap-2 animate-pulse" id="status-error-msg">
+                  <span>⚠️</span>
+                  <span>{statusError}</span>
+                </div>
+              )}
 
               {/* Client Info Banner */}
               <div className="p-5 border-b border-slate-100 bg-slate-50/50 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">

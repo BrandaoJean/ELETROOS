@@ -670,12 +670,18 @@ export default function PurchasesAndStockView({
 
   // Filtered lists for rendering
   const filteredProducts = useMemo(() => {
+    const search = (stockSearch || '').toLowerCase().trim();
     return products.filter(p => {
-      return p.name.toLowerCase().includes(stockSearch.toLowerCase()) ||
-             p.sku.toLowerCase().includes(stockSearch.toLowerCase()) ||
-             (p.supplierName && p.supplierName.toLowerCase().includes(stockSearch.toLowerCase()));
+      const nameMatch = p.name ? String(p.name).toLowerCase().includes(search) : false;
+      const skuMatch = p.sku ? String(p.sku).toLowerCase().includes(search) : false;
+      const supplierMatch = p.supplierName ? String(p.supplierName).toLowerCase().includes(search) : false;
+      return nameMatch || skuMatch || supplierMatch;
     });
   }, [products, stockSearch]);
+
+  const lowStockProducts = useMemo(() => {
+    return products.filter(p => p.stock <= 5);
+  }, [products]);
 
   const filteredSuppliers = useMemo(() => {
     return suppliers.filter(s => {
@@ -827,6 +833,25 @@ export default function PurchasesAndStockView({
         {subTab === 'stock' && (
           <div className="space-y-4">
             
+            {lowStockProducts.length > 0 && (
+              <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-900 p-4 rounded-r-xl space-y-2 shadow-xs" id="low-stock-alert-banner">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="text-amber-600 animate-bounce" size={18} />
+                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-amber-850">Alerta de Estoque Baixo para Reposição</h4>
+                </div>
+                <p className="text-[11px] text-amber-700 leading-relaxed font-semibold">
+                  Os seguintes itens estão com estoque crítico (5 unidades ou menos) e necessitam de reposição:
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {lowStockProducts.map(p => (
+                    <span key={p.id} className="bg-amber-100 border border-amber-250 px-2 py-1 rounded text-[10px] font-bold text-amber-950 flex items-center gap-1.5 shadow-xs hover:scale-102 transition-transform">
+                      ⚠️ {p.name} (SKU: {p.sku}) • <strong className="font-extrabold text-rose-700">{p.stock} un restante(s)</strong>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Search and Quick Add */}
             <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row justify-between items-center gap-3">
               <div className="relative w-full md:w-96">
