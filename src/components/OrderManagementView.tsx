@@ -15,10 +15,11 @@ import {
   Layers,
   Sparkles,
   ClipboardList,
-  ShieldAlert
+  ShieldAlert,
+  MessageSquare
 } from 'lucide-react';
 import { ServiceOrder, PartItem, OSStatus, Client, Product, ServiceTemplate } from '../types';
-import { formatBRL } from '../utils';
+import { formatBRL, getWhatsAppLink } from '../utils';
 import BudgetPrintModal from './BudgetPrintModal';
 
 interface OrderManagementViewProps {
@@ -191,6 +192,12 @@ export default function OrderManagementView({
   const [partPrice, setPartPrice] = useState('0');
   const [statusError, setStatusError] = useState('');
 
+  // WhatsApp notification states
+  const [isMsgModalOpen, setIsMsgModalOpen] = useState(false);
+  const [msgModalTitle, setMsgModalTitle] = useState('');
+  const [msgModalBody, setMsgModalBody] = useState('');
+  const [msgModalPhone, setMsgModalPhone] = useState('');
+
   // Active Selected OS
   const activeOS = useMemo(() => {
     return orders.find(o => o.id === selectedOrderId) || null;
@@ -204,6 +211,50 @@ export default function OrderManagementView({
       setStatusError('');
     }
   }, [activeOS]);
+
+  const handlePrepareMessage = (type: 'orcamento' | 'reparo_iniciado' | 'pronto' | 'entregue' | 'cobranca' | 'abandono') => {
+    if (!activeOS) return;
+    
+    setMsgModalPhone(activeOS.clientPhone);
+    const clientName = activeOS.clientName;
+    const equip = activeOS.equipment;
+    const brand = activeOS.brand || '';
+    const model = activeOS.model || '';
+    const sn = activeOS.serialNumber || 'N/A';
+    const osId = activeOS.id;
+    const totalCostStr = formatBRL(activeOS.totalCost);
+    const laborCostStr = formatBRL(activeOS.laborCost);
+    const partsCostStr = formatBRL(activeOS.parts.reduce((sum, p) => sum + (p.quantity * p.unitPrice), 0));
+    const technicalReport = activeOS.technicalReport || 'Diagnóstico em andamento';
+    const updatedAtStr = activeOS.updatedAt ? new Date(activeOS.updatedAt).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
+
+    let title = '';
+    let body = '';
+
+    if (type === 'orcamento') {
+      title = 'Enviar Orçamento para Aprovação';
+      body = `Olá, *${clientName}*! Informamos que o orçamento para o seu aparelho *${equip}* (${brand} ${model}) ficou pronto.\n\n*Laudo Técnico:* ${technicalReport}\n*Valor da Mão de Obra:* ${laborCostStr}\n*Peças:* ${partsCostStr}\n*Valor Total:* ${totalCostStr}\n\nPor favor, responda a esta mensagem aprovando ou recusando o orçamento. Obrigado!\n_Eletro OS_`;
+    } else if (type === 'reparo_iniciado') {
+      title = 'Avisar Início do Reparo';
+      body = `Olá, *${clientName}*! Seu equipamento *${equip}* (${brand} ${model}) já foi aprovado e o processo de manutenção/reparo já foi iniciado por nossos técnicos. Avisaremos assim que estiver pronto para retirada.\n_Eletro OS_`;
+    } else if (type === 'pronto') {
+      title = 'Avisar Equipamento Pronto';
+      body = `Olá, *${clientName}*! Temos ótimas notícias! O seu aparelho *${equip}* (${brand} ${model}) está pronto, testado e disponível para retirada na nossa assistência.\n\n*Valor Total a Pagar:* ${totalCostStr}\n\nAgradecemos a preferência!\n_Eletro OS_`;
+    } else if (type === 'entregue') {
+      title = 'Notificação de Saída / Recibo';
+      body = `Olá, *${clientName}*! Confirmamos a retirada e entrega do seu equipamento *${equip}* (${brand} ${model}) em perfeitas condições. O pagamento correspondente foi devidamente liquidado. Obrigado pela confiança!\n_Eletro OS_`;
+    } else if (type === 'cobranca') {
+      title = 'Mensagem de Cobrança de OS';
+      body = `Olá, *${clientName}*! Consta em nosso sistema uma pendência de pagamento referente à Ordem de Serviço *${osId}* para o equipamento *${equip}*. Solicitamos que entre em contato para regularização.\n_Eletro OS_`;
+    } else if (type === 'abandono') {
+      title = 'Notificação Formal de Abandono de Bem';
+      body = `Olá, *${clientName}*!\n\n*NOTIFICAÇÃO FORMAL DE ABANDONO DE BEM*\n\nReferente à Ordem de Serviço *${osId}* do aparelho *${equip}* (${brand} ${model} S/N: *${sn}*), informamos que o equipamento encontra-se pronto ou com orçamento finalizado em nossa oficina desde *${updatedAtStr}*, totalizando mais de *90 dias* sem retirada ou retorno de sua parte.\n\nNos termos do *Artigo 1.275, inciso III do Código Civil Brasileiro* (Lei nº 10.406/2002), o não comparecimento ou falta de retirada caracteriza abandono de propriedade, autorizando esta assistência técnica a dar destinação legal ao bem (doação, descarte ou alienação para cobrir custos de armazenamento, peças e mão de obra despendidos).\n\nSolicitamos seu comparecimento urgente no prazo improrrogável de *10 dias corridos* a contar do recebimento desta notificação para retirada do equipamento mediante quitação do valor pendente de *${totalCostStr}*, sob pena de perda definitiva do bem.\n\nAtenciosamente,\n*Eletro OS*`;
+    }
+
+    setMsgModalTitle(title);
+    setMsgModalBody(body);
+    setIsMsgModalOpen(true);
+  };
 
   // Unique list of past equipments of the selected client (for suggestion on new OS)
   const clientEquipments = useMemo(() => {
@@ -977,6 +1028,109 @@ export default function OrderManagementView({
                 </div>
               </div>
 
+              {/* WhatsApp Communication Panel */}
+              <div className="p-5 border-t border-slate-100 bg-white space-y-3.5">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                    <MessageSquare size={14} />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider">Disparos e Alertas de WhatsApp</h5>
+                    <p className="text-[9px] text-slate-400">Notifique seu cliente sobre cada etapa do reparo</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handlePrepareMessage('orcamento')}
+                    className="p-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-[10px] font-bold flex flex-col items-center justify-center gap-1 cursor-pointer text-center transition-all"
+                  >
+                    <span className="text-[14px]">📝</span>
+                    <span>Enviar Orçamento</span>
+                  </button>
+
+                  <button
+                    onClick={() => handlePrepareMessage('reparo_iniciado')}
+                    className="p-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-[10px] font-bold flex flex-col items-center justify-center gap-1 cursor-pointer text-center transition-all"
+                  >
+                    <span className="text-[14px]">⚡</span>
+                    <span>Avisar Início</span>
+                  </button>
+
+                  <button
+                    onClick={() => handlePrepareMessage('pronto')}
+                    className="p-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-[10px] font-bold flex flex-col items-center justify-center gap-1 cursor-pointer text-center transition-all"
+                  >
+                    <span className="text-[14px]">🎁</span>
+                    <span>Avisar Pronto</span>
+                  </button>
+
+                  <button
+                    onClick={() => handlePrepareMessage('entregue')}
+                    className="p-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-[10px] font-bold flex flex-col items-center justify-center gap-1 cursor-pointer text-center transition-all"
+                  >
+                    <span className="text-[14px]">✅</span>
+                    <span>Avisar Entrega</span>
+                  </button>
+
+                  <button
+                    onClick={() => handlePrepareMessage('cobranca')}
+                    className="p-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-[10px] font-bold flex flex-col items-center justify-center gap-1 col-span-2 cursor-pointer text-center transition-all"
+                  >
+                    <span className="text-[14px]">💵</span>
+                    <span>Lembrete de Cobrança / Pendência</span>
+                  </button>
+                </div>
+
+                {/* Abandono de Bem Legal Notice */}
+                {(() => {
+                  const lastUpdate = activeOS.updatedAt || activeOS.createdAt;
+                  const elapsedDays = Math.floor((new Date().getTime() - new Date(lastUpdate).getTime()) / (1000 * 60 * 60 * 24));
+                  const isAbandoned = elapsedDays >= 90;
+                  const remainingDays = 90 - elapsedDays;
+
+                  return (
+                    <div className="mt-3 p-3 bg-amber-50/50 rounded-lg border border-amber-200/50 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div className="pr-1">
+                          <p className="text-[9px] font-bold text-amber-800 uppercase flex items-center gap-1">
+                            ⚠️ Notificação de Abandono de Bem
+                          </p>
+                          <p className="text-[8px] text-slate-500 font-medium leading-relaxed mt-0.5">
+                            <strong>Base Legal:</strong> Art. 1.275, III do Código Civil Brasileiro (perda de propriedade por abandono). Liberado apenas após o prazo de 90 dias corridos de abandono do equipamento sem retirada.
+                          </p>
+                        </div>
+                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 bg-amber-100/80 text-amber-800 rounded shrink-0">
+                          {elapsedDays} dias
+                        </span>
+                      </div>
+
+                      {isAbandoned ? (
+                        <button
+                          onClick={() => handlePrepareMessage('abandono')}
+                          className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] rounded-lg transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                        >
+                          📢 Disparar Aviso de Abandono (90+ Dias)
+                        </button>
+                      ) : (
+                        <div className="space-y-1">
+                          <button
+                            disabled
+                            className="w-full py-2 px-3 bg-slate-200 text-slate-400 font-bold text-[10px] rounded-lg cursor-not-allowed flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                            title={`Faltam ${remainingDays} dias para liberar esta notificação legal.`}
+                          >
+                            🔒 Bloqueado (Faltam {remainingDays} dias)
+                          </button>
+                          <p className="text-center text-[8px] text-slate-400 font-medium">
+                            O botão será ativado após completar o prazo legal de 90 dias sem interação.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
             </div>
           )}
         </div>
@@ -1525,6 +1679,84 @@ export default function OrderManagementView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Message Editor Modal */}
+      {isMsgModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100">
+            <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+              <h3 className="font-bold text-sm flex items-center gap-1.5">
+                <MessageSquare size={16} className="text-emerald-400" />
+                <span>{msgModalTitle}</span>
+              </h3>
+              <button 
+                onClick={() => setIsMsgModalOpen(false)}
+                className="text-slate-400 hover:text-white font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-500 mb-1 uppercase tracking-wider text-[10px]">Destinatário (WhatsApp):</label>
+                <input
+                  type="text"
+                  value={msgModalPhone}
+                  onChange={(e) => setMsgModalPhone(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50 font-semibold"
+                  placeholder="Ex: 11999999999"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-500 mb-1 uppercase tracking-wider text-[10px]">Mensagem (Editável):</label>
+                <textarea
+                  rows={10}
+                  value={msgModalBody}
+                  onChange={(e) => setMsgModalBody(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg p-3 font-sans text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white leading-relaxed"
+                />
+                <p className="text-[9px] text-slate-400 mt-1">
+                  Você pode usar formatações do WhatsApp como *negrito*, _itálico_ ou ~tachado~.
+                </p>
+              </div>
+
+              {msgModalTitle.includes("Abandono") && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-[10px] font-bold text-red-800 uppercase flex items-center gap-1">
+                    ⚖️ Amparo Jurídico & Termos Importantes
+                  </p>
+                  <p className="text-[8px] text-slate-600 font-medium leading-relaxed mt-1">
+                    Esta mensagem possui validade jurídica de notificação extrajudicial quando entregue e lida pelo destinatário. O prazo mínimo legal de guarda/aviso sem cobrança ou destino é de 90 dias corridos após o orçamento pronto ou finalização. A base para descarte ou alienação do bem é baseada no <strong>Artigo 1.275, inciso III, do Código Civil Brasileiro</strong>.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsMsgModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50 transition-colors cursor-pointer text-xs"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const link = getWhatsAppLink(msgModalPhone, msgModalBody);
+                    window.open(link, '_blank');
+                    setIsMsgModalOpen(false);
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1.5 text-xs"
+                >
+                  <MessageSquare size={14} /> Enviar Mensagem
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

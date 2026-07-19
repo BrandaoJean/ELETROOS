@@ -274,9 +274,17 @@ export default function App() {
 
   const agendaOrders = useMemo(() => {
     const activeStatuses: OSStatus[] = ['aguardando_orcamento', 'orcamento_aprovado', 'em_reparo', 'pronto'];
-    return orders
-      .filter(o => activeStatuses.includes(o.status))
-      .slice(0, 4);
+    const localToday = new Date();
+    const year = localToday.getFullYear();
+    const month = String(localToday.getMonth() + 1).padStart(2, '0');
+    const day = String(localToday.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
+    return orders.filter(o => {
+      if (!activeStatuses.includes(o.status)) return false;
+      if (!o.dueDate) return false;
+      return o.dueDate.split('T')[0] === todayStr;
+    });
   }, [orders]);
 
   const unreadNotificationsCount = useMemo(() => {

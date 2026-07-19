@@ -24,6 +24,7 @@ export interface PaymentItem {
   amount: number;
   timestamp: string;
   installmentsCount?: number;
+  interestRate?: number;
   firstInstallmentDueDate?: string;
   installmentsList?: { number: number; dueDate: string; amount: number; status: 'pendente' | 'pago' }[];
 }
@@ -175,6 +176,10 @@ export interface POSSale {
   total: number;
   paymentMethod: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira';
   timestamp: string;
+  installmentsCount?: number;
+  interestRate?: number;
+  firstInstallmentDueDate?: string;
+  installmentsList?: { number: number; dueDate: string; amount: number; status: 'pendente' | 'pago' }[];
 }
 
 export interface InserviceableAsset {

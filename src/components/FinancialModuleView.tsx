@@ -125,6 +125,22 @@ export default function FinancialModuleView({
   const [posLooseQty, setPosLooseQty] = useState(1);
   const [posOsSearchQuery, setPosOsSearchQuery] = useState('');
 
+  // Installment states for Carteira Própria in direct POS sale
+  const [posIsInstallment, setPosIsInstallment] = useState(false);
+  const [posInstallmentsCount, setPosInstallmentsCount] = useState<number>(3);
+  const [posInterestRate, setPosInterestRate] = useState<number>(0);
+
+  // Installment states for Carteira Própria in direct OS settlement
+  const [osIsInstallment, setOsIsInstallment] = useState(false);
+  const [osInstallmentsCount, setOsInstallmentsCount] = useState<number>(3);
+  const [osInterestRate, setOsInterestRate] = useState<number>(0);
+
+  const firstInstallmentDate = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30); // Strict 30 calendar days from now
+    return d.toISOString().split('T')[0];
+  }, []);
+
   // Find unpaid OS by ID (supporting "OS-1001" or just "1001")
   const foundOS = useMemo(() => {
     if (!posOsSearchQuery.trim()) return null;
@@ -136,28 +152,76 @@ export default function FinancialModuleView({
     ) || null;
   }, [orders, posOsSearchQuery]);
 
+  const osGeneratedInstallments = useMemo(() => {
+    const list: { number: number; dueDate: string; amount: number }[] = [];
+    if (!foundOS || !osIsInstallment) return list;
+    const amount = foundOS.totalCost;
+    if (amount <= 0) return list;
+    
+    // Apply editable interest rate
+    const totalWithInterest = amount * (1 + (osInterestRate / 100));
+    const partAmount = parseFloat((totalWithInterest / osInstallmentsCount).toFixed(2));
+    const [year, month, day] = firstInstallmentDate.split('-').map(Number);
+    
+    let sumPaid = 0;
+    for (let i = 0; i < osInstallmentsCount; i++) {
+      const isLast = i === osInstallmentsCount - 1;
+      const installmentAmount = isLast ? parseFloat((totalWithInterest - sumPaid).toFixed(2)) : partAmount;
+      sumPaid += installmentAmount;
+
+      const date = new Date(year, month - 1 + i, 1);
+      const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+      const targetDay = Math.min(day, daysInMonth);
+      
+      const dueDateObj = new Date(date.getFullYear(), date.getMonth(), targetDay);
+      const dueStr = dueDateObj.toISOString().split('T')[0];
+
+      list.push({
+        number: i + 1,
+        dueDate: dueStr,
+        amount: installmentAmount
+      });
+    }
+    return list;
+  }, [foundOS, osIsInstallment, osInstallmentsCount, firstInstallmentDate, osInterestRate]);
+
   // Handler to pay and settle the searched OS
   const handlePayFoundOS = () => {
     if (!foundOS) return;
     
+    const finalAmount = (posPaymentMethod === 'carteira' && osIsInstallment)
+      ? parseFloat((foundOS.totalCost * (1 + (osInterestRate / 100))).toFixed(2))
+      : foundOS.totalCost;
+
     // Process wallet balance check if payment is Carteira Própria
     if (posPaymentMethod === 'carteira') {
       const client = clients.find(c => c.id === foundOS.clientId);
-      if (client && client.walletBalance < foundOS.totalCost) {
-        const confirmDebit = confirm(`O cliente ${client.name} possui apenas ${formatBRL(client.walletBalance)} na carteira.\nDeseja autorizar a quitação gerando débito de ${formatBRL(client.walletBalance - foundOS.totalCost)} na ficha dele?`);
+      if (client && client.walletBalance < finalAmount) {
+        const confirmDebit = confirm(`O cliente ${client.name} possui apenas ${formatBRL(client.walletBalance)} na carteira.\nDeseja autorizar a quitação gerando débito de ${formatBRL(client.walletBalance - finalAmount)} na ficha dele?`);
         if (!confirmDebit) return;
         
         // Deduct from wallet (allow debit/negative balance)
-        setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - foundOS.totalCost } : c));
+        setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - finalAmount } : c));
       } else if (client) {
-        setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - foundOS.totalCost } : c));
+        setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - finalAmount } : c));
       }
     }
 
     const payItem = {
       method: posPaymentMethod,
-      amount: foundOS.totalCost,
-      timestamp: new Date().toISOString()
+      amount: finalAmount,
+      timestamp: new Date().toISOString(),
+      ...(posPaymentMethod === 'carteira' && osIsInstallment ? {
+        installmentsCount: osInstallmentsCount,
+        interestRate: osInterestRate,
+        firstInstallmentDueDate: firstInstallmentDate,
+        installmentsList: osGeneratedInstallments.map(inst => ({
+          number: inst.number,
+          dueDate: inst.dueDate,
+          amount: inst.amount,
+          status: 'pendente' as const
+        }))
+      } : {})
     };
 
     setOrders(prev => prev.map(o => {
@@ -173,7 +237,7 @@ export default function FinancialModuleView({
             {
               timestamp: new Date().toISOString(),
               status: 'entregue',
-              note: `OS quitada e entregue via caixa PDV utilizando ${posPaymentMethod.toUpperCase()}.`
+              note: `OS quitada e entregue via caixa PDV utilizando ${posPaymentMethod.toUpperCase()}${osIsInstallment ? ` (${osInstallmentsCount}x com ${osInterestRate}% de juros)` : ''}.`
             }
           ]
         };
@@ -183,6 +247,8 @@ export default function FinancialModuleView({
 
     alert(`OS ${foundOS.id} quitada e encerrada com sucesso via ${posPaymentMethod.toUpperCase()}!`);
     setPosOsSearchQuery('');
+    setOsIsInstallment(false);
+    setOsInterestRate(0);
   };
 
   // Pre-determined Categories lists
@@ -683,6 +749,38 @@ export default function FinancialModuleView({
     return parseFloat((posSubtotal - calculatedDiscount).toFixed(2));
   }, [posSubtotal, calculatedDiscount]);
 
+  const posGeneratedInstallments = useMemo(() => {
+    const list: { number: number; dueDate: string; amount: number }[] = [];
+    const amount = posTotal;
+    if (amount <= 0 || !posIsInstallment) return list;
+    
+    // Apply editable interest rate
+    const totalWithInterest = amount * (1 + (posInterestRate / 100));
+    const partAmount = parseFloat((totalWithInterest / posInstallmentsCount).toFixed(2));
+    const [year, month, day] = firstInstallmentDate.split('-').map(Number);
+    
+    let sumPaid = 0;
+    for (let i = 0; i < posInstallmentsCount; i++) {
+      const isLast = i === posInstallmentsCount - 1;
+      const installmentAmount = isLast ? parseFloat((totalWithInterest - sumPaid).toFixed(2)) : partAmount;
+      sumPaid += installmentAmount;
+
+      const date = new Date(year, month - 1 + i, 1);
+      const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+      const targetDay = Math.min(day, daysInMonth);
+      
+      const dueDateObj = new Date(date.getFullYear(), date.getMonth(), targetDay);
+      const dueStr = dueDateObj.toISOString().split('T')[0];
+
+      list.push({
+        number: i + 1,
+        dueDate: dueStr,
+        amount: installmentAmount
+      });
+    }
+    return list;
+  }, [posTotal, posIsInstallment, posInstallmentsCount, firstInstallmentDate, posInterestRate]);
+
   // Complete POS Sale Flow
   const handleCheckoutPOS = () => {
     if (posCart.length === 0) {
@@ -690,18 +788,22 @@ export default function FinancialModuleView({
       return;
     }
 
+    const finalTotal = (posPaymentMethod === 'carteira' && posIsInstallment)
+      ? parseFloat((posTotal * (1 + (posInterestRate / 100))).toFixed(2))
+      : posTotal;
+
     // Process Wallet limit checkout
     if (posPaymentMethod === 'carteira' && selectedPosClient !== 'consumidor_final') {
       const client = clients.find(c => c.id === selectedPosClient);
-      if (client && client.walletBalance < posTotal) {
-        const confirmDebit = confirm(`O cliente possui apenas ${formatBRL(client.walletBalance)} na carteira.\nDeseja autorizar venda faturada gerando débito de ${formatBRL(client.walletBalance - posTotal)} na ficha?`);
+      if (client && client.walletBalance < finalTotal) {
+        const confirmDebit = confirm(`O cliente possui apenas ${formatBRL(client.walletBalance)} na carteira.\nDeseja autorizar venda faturada gerando débito de ${formatBRL(client.walletBalance - finalTotal)} na ficha?`);
         if (!confirmDebit) return;
         
         // Deduct from wallet (allow debit/negative balance)
-        setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - posTotal } : c));
+        setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - finalTotal } : c));
       } else if (client) {
         // Direct debit
-        setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - posTotal } : c));
+        setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - finalTotal } : c));
       }
     } else if (posPaymentMethod === 'carteira' && selectedPosClient === 'consumidor_final') {
       alert('Venda para Consumidor Final não aceita Carteira Própria como meio. Selecione um cliente cadastrado!');
@@ -730,9 +832,20 @@ export default function FinancialModuleView({
       items: posCart,
       subtotal: posSubtotal,
       discount: calculatedDiscount,
-      total: posTotal,
+      total: finalTotal,
       paymentMethod: posPaymentMethod,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      ...(posPaymentMethod === 'carteira' && posIsInstallment ? {
+        installmentsCount: posInstallmentsCount,
+        interestRate: posInterestRate,
+        firstInstallmentDueDate: firstInstallmentDate,
+        installmentsList: posGeneratedInstallments.map(inst => ({
+          number: inst.number,
+          dueDate: inst.dueDate,
+          amount: inst.amount,
+          status: 'pendente' as const
+        }))
+      } : {})
     };
 
     setPosSales(prev => [newSale, ...prev]);
@@ -743,6 +856,8 @@ export default function FinancialModuleView({
     setPosDiscount('0');
     setSelectedPosClient('consumidor_final');
     setPosClientSearch('');
+    setPosIsInstallment(false);
+    setPosInterestRate(0);
     
     alert(`Venda ${newSaleId} registrada e estoque atualizado!`);
   };
@@ -1487,7 +1602,7 @@ export default function FinancialModuleView({
                 </div>
 
                 {foundOS ? (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-3 animate-pulse">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-3">
                     <div className="flex justify-between items-start border-b border-amber-200/60 pb-2">
                       <div>
                         <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-mono font-black">{foundOS.id}</span>
@@ -1500,7 +1615,78 @@ export default function FinancialModuleView({
                       </div>
                     </div>
 
-                    <div className="flex justify-between items-center">
+                    {/* Carteira Própria Installment Options for searched OS */}
+                    {posPaymentMethod === 'carteira' && (
+                      <div className="bg-white p-3 rounded-xl border border-amber-200/60 text-[11px] font-bold text-slate-700 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-amber-800 uppercase text-[9px] tracking-wider font-extrabold flex items-center gap-1">
+                            <Wallet size={12} className="text-amber-600" /> Parcelamento da OS na Carteira
+                          </span>
+                          <label className="flex items-center gap-1.5 cursor-pointer text-slate-800">
+                            <input
+                              type="checkbox"
+                              checked={osIsInstallment}
+                              onChange={(e) => setOsIsInstallment(e.target.checked)}
+                              className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
+                            />
+                            <span>Habilitar Parcelas</span>
+                          </label>
+                        </div>
+
+                        {osIsInstallment && (
+                          <div className="space-y-2.5 pt-1.5 border-t border-slate-100">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[9px] text-slate-500 mb-0.5">Nº de Parcelas:</label>
+                                <input
+                                  type="number"
+                                  min="2"
+                                  max="36"
+                                  value={osInstallmentsCount}
+                                  onChange={(e) => setOsInstallmentsCount(Math.max(2, parseInt(e.target.value) || 2))}
+                                  className="w-full border border-slate-200 rounded p-1 text-center font-extrabold focus:ring-1 focus:ring-amber-500 bg-slate-50 text-slate-800"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] text-slate-500 mb-0.5">Taxa de Juros Mensal (%):</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.1"
+                                  value={osInterestRate}
+                                  onChange={(e) => setOsInterestRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                                  className="w-full border border-slate-200 rounded p-1 text-center font-extrabold focus:ring-1 focus:ring-amber-500 bg-slate-50 text-slate-800"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-200/60 space-y-1.5">
+                              <div className="flex justify-between items-center text-[9px] text-slate-500">
+                                <span>Primeira Parcela (30 dias):</span>
+                                <span className="font-mono font-bold text-slate-700">
+                                  {new Date(firstInstallmentDate + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                </span>
+                              </div>
+                              <div className="max-h-24 overflow-y-auto space-y-1 divide-y divide-slate-100 pr-1">
+                                {osGeneratedInstallments.map((inst) => (
+                                  <div key={inst.number} className="flex justify-between items-center text-[10px] pt-1 first:pt-0">
+                                    <span className="text-slate-500 font-medium">Parcela {inst.number}/{osInstallmentsCount}</span>
+                                    <span className="text-slate-400 text-[9px] font-mono">{new Date(inst.dueDate + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                                    <span className="font-mono font-bold text-amber-700">{formatBRL(inst.amount)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex justify-between items-center text-[10px] pt-1.5 border-t border-slate-200 font-extrabold text-slate-800">
+                                <span>TOTAL COM JUROS:</span>
+                                <span className="font-mono text-amber-800">{formatBRL(foundOS.totalCost * (1 + (osInterestRate / 100)))}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center pt-2 border-t border-amber-200/60">
                       <span className="text-[9px] text-slate-500 font-semibold italic">OS está pendente de quitação.</span>
                       <button
                         type="button"
@@ -1657,6 +1843,73 @@ export default function FinancialModuleView({
                     </select>
                   </div>
                 </div>
+
+                {/* Carteira Própria Installment Options */}
+                {posPaymentMethod === 'carteira' && selectedPosClient !== 'consumidor_final' && (
+                  <div className="mx-4 mb-3 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 space-y-3 text-[11px] font-bold text-slate-700 animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <span className="text-indigo-900 uppercase text-[9px] tracking-wider font-extrabold flex items-center gap-1">
+                        <Wallet size={12} /> Parcelamento na Carteira
+                      </span>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-indigo-950">
+                        <input
+                          type="checkbox"
+                          checked={posIsInstallment}
+                          onChange={(e) => setPosIsInstallment(e.target.checked)}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span>Habilitar Parcelas</span>
+                      </label>
+                    </div>
+
+                    {posIsInstallment && (
+                      <div className="space-y-2.5 pt-1.5 border-t border-indigo-100/60">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[9px] text-slate-500 mb-0.5">Nº de Parcelas:</label>
+                            <input
+                              type="number"
+                              min="2"
+                              max="36"
+                              value={posInstallmentsCount}
+                              onChange={(e) => setPosInstallmentsCount(Math.max(2, parseInt(e.target.value) || 2))}
+                              className="w-full border border-slate-200 rounded p-1 text-center font-extrabold focus:ring-1 focus:ring-indigo-500 bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] text-slate-500 mb-0.5">Taxa de Juros Mensal (%):</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={posInterestRate}
+                              onChange={(e) => setPosInterestRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                              className="w-full border border-slate-200 rounded p-1 text-center font-extrabold focus:ring-1 focus:ring-indigo-500 bg-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="bg-white p-2 rounded-lg border border-indigo-100/60 space-y-1.5">
+                          <div className="flex justify-between items-center text-[9px] text-slate-500">
+                            <span>Primeira Parcela (30 dias):</span>
+                            <span className="font-mono font-bold text-slate-700">
+                              {new Date(firstInstallmentDate + 'T12:00:00').toLocaleDateString('pt-BR')}
+                            </span>
+                          </div>
+                          <div className="max-h-24 overflow-y-auto space-y-1 divide-y divide-slate-100 pr-1">
+                            {posGeneratedInstallments.map((inst) => (
+                              <div key={inst.number} className="flex justify-between items-center text-[10px] pt-1 first:pt-0">
+                                <span className="text-slate-500 font-medium">Parcela {inst.number}/{posInstallmentsCount}</span>
+                                <span className="text-slate-400 text-[9px] font-mono">{new Date(inst.dueDate + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                                <span className="font-mono font-bold text-indigo-600">{formatBRL(inst.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Totals panel and checkout trigger */}
                 <div className="p-4 border-t border-slate-200 bg-slate-900 text-white shrink-0">

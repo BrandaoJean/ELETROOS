@@ -56,9 +56,10 @@ export default function PaymentModal({
   // Installment states for Carteira Própria
   const [isInstallment, setIsInstallment] = useState(false);
   const [installmentsCount, setInstallmentsCount] = useState<number>(3);
-  const [firstInstallmentDate, setFirstInstallmentDate] = useState<string>(() => {
+  const [interestRate, setInterestRate] = useState<number>(0);
+  const [firstInstallmentDate] = useState<string>(() => {
     const d = new Date();
-    d.setDate(d.getDate() + 30); // Default to 30 days from now
+    d.setDate(d.getDate() + 30); // Strict 30 calendar days from now
     return d.toISOString().split('T')[0];
   });
 
@@ -70,13 +71,15 @@ export default function PaymentModal({
     const amount = parseFloat(amountInput) || 0;
     if (amount <= 0) return list;
     
-    const partAmount = parseFloat((amount / installmentsCount).toFixed(2));
+    // Apply editable interest rate
+    const totalWithInterest = amount * (1 + (interestRate / 100));
+    const partAmount = parseFloat((totalWithInterest / installmentsCount).toFixed(2));
     const [year, month, day] = firstInstallmentDate.split('-').map(Number);
     
     let sumPaid = 0;
     for (let i = 0; i < installmentsCount; i++) {
       const isLast = i === installmentsCount - 1;
-      const installmentAmount = isLast ? parseFloat((amount - sumPaid).toFixed(2)) : partAmount;
+      const installmentAmount = isLast ? parseFloat((totalWithInterest - sumPaid).toFixed(2)) : partAmount;
       sumPaid += installmentAmount;
 
       const date = new Date(year, month - 1 + i, 1);
@@ -95,7 +98,7 @@ export default function PaymentModal({
       });
     }
     return list;
-  }, [amountInput, installmentsCount, firstInstallmentDate]);
+  }, [amountInput, installmentsCount, firstInstallmentDate, interestRate]);
 
   // Total paid so far
   const totalPaid = useMemo(() => {
@@ -143,6 +146,7 @@ export default function PaymentModal({
       timestamp: new Date().toISOString(),
       ...(selectedMethod === 'carteira' && isInstallment ? {
         installmentsCount: installmentsCount,
+        interestRate: interestRate,
         firstInstallmentDueDate: firstInstallmentDate,
         installmentsList: generatedInstallments.map(inst => ({
           number: inst.number,
@@ -156,6 +160,7 @@ export default function PaymentModal({
     setAddedPayments(prev => [...prev, newItem]);
     setAmountInput('');
     setIsInstallment(false); // Reset to false after adding
+    setInterestRate(0); // Reset interest rate
   };
 
   // Handler: Remove split
@@ -403,9 +408,9 @@ export default function PaymentModal({
 
                   {isInstallment && (
                     <div className="space-y-2.5">
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Qtd de Parcelas:</label>
+                          <label className="block text-[9px] font-bold text-slate-500 uppercase mb-1">Parcelas:</label>
                           <input
                             type="number"
                             min="2"
@@ -416,20 +421,43 @@ export default function PaymentModal({
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Vencimento da 1ª Parcela:</label>
+                          <label className="block text-[9px] font-bold text-slate-500 uppercase mb-1">Juros (%):</label>
                           <input
-                            type="date"
-                            value={firstInstallmentDate}
-                            onChange={(e) => setFirstInstallmentDate(e.target.value)}
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={interestRate}
+                            onChange={(e) => setInterestRate(Math.max(0, parseFloat(e.target.value) || 0))}
                             className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-indigo-500 focus:outline-none bg-white font-semibold text-xs"
                           />
                         </div>
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-500 uppercase mb-1">Venc. 1ª Parc:</label>
+                          <input
+                            type="date"
+                            value={firstInstallmentDate}
+                            disabled
+                            title="A primeira parcela é sempre para 30 dias corridos após a data da venda"
+                            className="w-full border border-slate-200 rounded-lg p-2 bg-slate-100 text-slate-500 font-semibold text-xs cursor-not-allowed"
+                          />
+                        </div>
                       </div>
+                      <p className="text-[9px] text-slate-400 font-medium">
+                        * A primeira parcela está agendada para exatamente 30 dias corridos ({new Date(firstInstallmentDate + 'T12:00:00').toLocaleDateString('pt-BR')}) conforme regra de venda.
+                      </p>
 
                       {/* Displaying generated installment plan */}
                       {generatedInstallments.length > 0 && (
                         <div className="bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100/60 space-y-1">
-                          <p className="font-bold text-[10px] text-indigo-800 uppercase tracking-wider mb-1.5">Grade de Parcelas Geradas:</p>
+                          <div className="flex justify-between items-center mb-1">
+                            <p className="font-bold text-[10px] text-indigo-800 uppercase tracking-wider">Grade de Parcelas Geradas:</p>
+                            {interestRate > 0 && (
+                              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/50">
+                                Total com Juros: {formatBRL((parseFloat(amountInput) || 0) * (1 + (interestRate / 100)))}
+                              </span>
+                            )}
+                          </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 font-mono text-[10px] text-slate-700 max-h-24 overflow-y-auto bg-white/80 p-2 rounded border border-indigo-100/30">
                             {generatedInstallments.map((inst) => (
                               <div key={inst.number} className="flex justify-between border-b border-slate-200/50 pb-0.5">
@@ -553,7 +581,7 @@ export default function PaymentModal({
                     <div className="flex justify-between pl-2">
                       <span className="uppercase font-bold">
                         {p.method.replace('_', ' ')}
-                        {p.method === 'carteira' && p.installmentsCount ? ` (${p.installmentsCount}x)` : ''}:
+                        {p.method === 'carteira' && p.installmentsCount ? ` (${p.installmentsCount}x${p.interestRate ? ` a ${p.interestRate}% juros` : ''})` : ''}:
                       </span>
                       <span className="font-bold">{formatBRL(p.amount)}</span>
                     </div>

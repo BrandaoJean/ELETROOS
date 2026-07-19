@@ -156,7 +156,7 @@ export const mockServiceOrders: ServiceOrder[] = [
     status: 'pronto',
     createdAt: '2026-07-12T09:00:00Z',
     updatedAt: '2026-07-13T17:00:00Z',
-    dueDate: '2026-07-18',
+    dueDate: new Date().toISOString().split('T')[0],
     isPaid: false,
     payments: [],
     history: [
@@ -220,6 +220,35 @@ export const mockServiceOrders: ServiceOrder[] = [
       { timestamp: '2026-07-13T10:00:00Z', status: 'aguardando_orcamento', note: 'Entrada para restauro de canal de áudio.' },
       { timestamp: '2026-07-13T15:00:00Z', status: 'orcamento_aprovado', note: 'Cliente aprovou o restauro completo.' },
       { timestamp: '2026-07-14T14:30:00Z', status: 'em_reparo', note: 'Placa limpa, componentes de áudio sendo dessoldados.' }
+    ]
+  },
+  {
+    id: 'OS-1006',
+    clientId: 'C-005',
+    clientName: 'Roberto de Oliveira',
+    clientPhone: '11955554444',
+    equipment: 'Ar Condicionado Split',
+    brand: 'Carrier',
+    model: 'XPower 12000 BTU',
+    serialNumber: 'CARR-SPLIT-8812',
+    reportedProblem: 'Vazamento de gás e motor não liga.',
+    technicalReport: 'Pressurização do sistema, reparo de micro-furo na evaporadora com solda de prata e recarga completa de gás refrigerante R410A.',
+    laborCost: 200.00,
+    parts: [
+      { id: 'p7', name: 'Gás Refrigerante Ecológico R410A', quantity: 1, unitPrice: 150.00 }
+    ],
+    totalCost: 350.00,
+    status: 'pronto',
+    createdAt: '2026-03-05T10:00:00Z',
+    updatedAt: '2026-03-07T14:30:00Z',
+    dueDate: '2026-03-15',
+    isPaid: false,
+    payments: [],
+    history: [
+      { timestamp: '2026-03-05T10:00:00Z', status: 'aguardando_orcamento', note: 'Entrada com reclamação de vazamento de gás.' },
+      { timestamp: '2026-03-05T16:00:00Z', status: 'orcamento_aprovado', note: 'Aprovado pressurização e carga de gás.' },
+      { timestamp: '2026-03-06T11:00:00Z', status: 'em_reparo', note: 'Evaporadora soldada e em teste de estanqueidade.' },
+      { timestamp: '2026-03-07T14:30:00Z', status: 'pronto', note: 'Equipamento pronto, gelando perfeitamente. Cliente avisado para retirar e pagar.' }
     ]
   }
 ];
