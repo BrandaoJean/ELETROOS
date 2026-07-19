@@ -376,8 +376,8 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
   };
 
   return createPortal(
-    <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto print:p-0 print:bg-white print:static print:h-auto">
-      <div className="bg-white rounded-xl shadow-2xl max-w-7xl w-full flex flex-col max-h-[90vh] border border-slate-200 overflow-hidden print:shadow-none print:border-none print:max-h-none print:rounded-none">
+    <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto print:p-0 print:bg-white print:static print:h-auto print-portal-parent">
+      <div className="bg-white rounded-xl shadow-2xl max-w-7xl w-full flex flex-col max-h-[90vh] border border-slate-200 overflow-hidden print:shadow-none print:border-none print:max-h-none print:rounded-none print-portal-content">
         
         {/* Modal Controls (Hidden during print) */}
         <div className="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center print:hidden shrink-0">
@@ -437,53 +437,107 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
         </div>
 
         {/* Printable Document Area */}
-        <div className="p-4 md:p-6 lg:p-8 overflow-y-auto flex-1 bg-slate-50 print:bg-white print:p-0 print:overflow-visible">
+        <div className="p-4 md:p-6 lg:p-8 overflow-y-auto flex-1 bg-slate-50 print:bg-white print:p-0 print:overflow-visible print-area-wrapper">
           <style>{`
             @media print {
-              #root {
+              #root, .print\\:hidden, .print-hidden {
+                display: none !important;
+              }
+              body > *:not(.print-portal-parent) {
                 display: none !important;
               }
               @page {
                 size: A4 landscape !important;
-                margin: 5mm 6mm !important;
+                margin: 0 !important;
               }
               html, body {
+                width: 297mm !important;
                 height: 210mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
                 overflow: hidden !important;
-                background: #ffffff !important;
+                background-color: #ffffff !important;
                 color: #000000 !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
               }
-              .fixed {
+              .print-portal-parent {
                 position: absolute !important;
                 left: 0 !important;
                 top: 0 !important;
-                width: 100% !important;
-                height: 100% !important;
-                background: white !important;
+                width: 297mm !important;
+                height: 210mm !important;
+                background-color: white !important;
+                margin: 0 !important;
                 padding: 0 !important;
-                overflow: hidden !important;
-              }
-              .print\\:hidden, .print-hidden {
-                display: none !important;
-              }
-              #print-area {
                 border: none !important;
                 box-shadow: none !important;
-                padding: 0 !important;
+                overflow: hidden !important;
+                display: block !important;
+              }
+              .print-portal-content {
+                width: 100% !important;
+                height: 100% !important;
+                max-width: 100% !important;
+                max-height: 100% !important;
                 margin: 0 !important;
-                width: 285mm !important;
-                max-width: 285mm !important;
-                height: 198mm !important;
-                background: white !important;
+                padding: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                display: flex !important;
+                flex-direction: column !important;
+                background-color: white !important;
+              }
+              .print-area-wrapper {
+                width: 100% !important;
+                height: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                display: block !important;
+                background-color: white !important;
+              }
+              
+              /* Override specificity of destructive global index.css selectors */
+              .print-portal-parent #print-area {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 8mm 12mm !important;
+                margin: 0 !important;
+                width: 297mm !important;
+                max-width: 297mm !important;
+                height: 210mm !important;
+                max-height: 210mm !important;
+                background-color: white !important;
                 box-sizing: border-box !important;
                 overflow: hidden !important;
+                display: block !important;
               }
+              
+              .print-portal-parent #print-area .relative,
+              .print-portal-parent #print-area .absolute,
+              .print-portal-parent #print-area .fixed {
+                background: transparent !important;
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: visible !important;
+              }
+              .print-portal-parent #print-area .relative {
+                position: relative !important;
+                display: block !important;
+                width: 100% !important;
+                height: auto !important;
+              }
+              .print-portal-parent #print-area .absolute {
+                position: absolute !important;
+              }
+              
               .print-side-by-side-grid {
                 display: grid !important;
                 grid-template-columns: 1fr 1fr !important;
-                gap: 30px !important;
+                gap: 16mm !important;
                 width: 100% !important;
                 height: 100% !important;
                 box-sizing: border-box !important;
@@ -497,6 +551,7 @@ export default function BudgetPrintModal({ order, client, onClose }: BudgetPrint
                 height: 100% !important;
                 box-sizing: border-box !important;
                 position: relative !important;
+                overflow: hidden !important;
               }
               .print-divider-wrapper {
                 position: absolute !important;
