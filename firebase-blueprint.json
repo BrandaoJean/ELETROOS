@@ -1,0 +1,249 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role access",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "username": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["administrador", "tecnico", "atendente"] },
+        "companyCnpj": { "type": "string" }
+      },
+      "required": ["id", "name", "username", "email", "role", "companyCnpj"]
+    },
+    "CompanyProfile": {
+      "title": "CompanyProfile",
+      "description": "MEI/Company profile details",
+      "type": "object",
+      "properties": {
+        "cnpj": { "type": "string" },
+        "razaoSocial": { "type": "string" },
+        "nomeFantasia": { "type": "string" },
+        "cnaeCode": { "type": "string" },
+        "cnaeDesc": { "type": "string" },
+        "taxRegime": { "type": "string" },
+        "stateRegistration": { "type": "string" },
+        "municipalRegistration": { "type": "string" },
+        "cep": { "type": "string" },
+        "address": { "type": "string" },
+        "number": { "type": "string" },
+        "complement": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["cnpj", "razaoSocial", "nomeFantasia"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Customer contact and billing info",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "cpf": { "type": "string" },
+        "walletBalance": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "phone", "email", "cpf", "walletBalance", "createdAt"]
+    },
+    "ServiceOrder": {
+      "title": "ServiceOrder",
+      "description": "Technical service order or budget details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientPhone": { "type": "string" },
+        "equipment": { "type": "string" },
+        "brand": { "type": "string" },
+        "model": { "type": "string" },
+        "serialNumber": { "type": "string" },
+        "reportedProblem": { "type": "string" },
+        "technicalReport": { "type": "string" },
+        "laborCost": { "type": "number" },
+        "totalCost": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "isPaid": { "type": "boolean" }
+      },
+      "required": ["id", "clientId", "clientName", "equipment", "brand", "model", "totalCost", "status", "createdAt", "updatedAt", "isPaid"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Inventory product item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "sku": { "type": "string" },
+        "costPrice": { "type": "number" },
+        "profitMargin": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "stock": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "sku", "costPrice", "sellingPrice", "stock", "createdAt"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Supplier contact info",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "cnpj", "phone", "email", "createdAt"]
+    },
+    "ProductPurchase": {
+      "title": "ProductPurchase",
+      "description": "Inventory acquisition from supplier",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "purchaseDate": { "type": "string" },
+        "totalAmount": { "type": "number" }
+      },
+      "required": ["id", "invoiceNumber", "supplierId", "supplierName", "purchaseDate", "totalAmount"]
+    },
+    "POSSale": {
+      "title": "POSSale",
+      "description": "PDV Sale invoice",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientName": { "type": "string" },
+        "subtotal": { "type": "number" },
+        "discount": { "type": "number" },
+        "total": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "clientName", "subtotal", "discount", "total", "paymentMethod", "timestamp"]
+    },
+    "FinancialAccountItem": {
+      "title": "FinancialAccountItem",
+      "description": "Payable/Receivable cashflow item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["pagar", "receber"] },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "dueDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["pendente", "pago", "atrasado"] }
+      },
+      "required": ["id", "type", "description", "category", "amount", "dueDate", "status"]
+    },
+    "InserviceableAsset": {
+      "title": "InserviceableAsset",
+      "description": "Equipment discarded or left behind",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientName": { "type": "string" },
+        "equipment": { "type": "string" },
+        "brand": { "type": "string" },
+        "model": { "type": "string" },
+        "serialNumber": { "type": "string" },
+        "entryDate": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "clientName", "equipment", "brand", "model", "serialNumber", "entryDate", "status"]
+    },
+    "ServiceTemplate": {
+      "title": "ServiceTemplate",
+      "description": "Template price list for services",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "standardPrice": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "standardPrice", "createdAt"]
+    },
+    "PushNotification": {
+      "title": "PushNotification",
+      "description": "System alerts and notifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "type": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["id", "timestamp", "title", "body", "type", "read"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Collection of system user profiles"
+    },
+    "companyProfile": {
+      "schema": "CompanyProfile",
+      "description": "Unified company and MEI configurations"
+    },
+    "clients": {
+      "schema": "Client",
+      "description": "Registered clients details"
+    },
+    "orders": {
+      "schema": "ServiceOrder",
+      "description": "Repair and service orders list"
+    },
+    "products": {
+      "schema": "Product",
+      "description": "Active parts inventory list"
+    },
+    "suppliers": {
+      "schema": "Supplier",
+      "description": "Suppliers and contacts"
+    },
+    "purchases": {
+      "schema": "ProductPurchase",
+      "description": "Supplier item acquisitions"
+    },
+    "posSales": {
+      "schema": "POSSale",
+      "description": "POS counters direct sales"
+    },
+    "manualAccounts": {
+      "schema": "FinancialAccountItem",
+      "description": "Generic payable/receivable accounts"
+    },
+    "inserviceableAssets": {
+      "schema": "InserviceableAsset",
+      "description": "Abandoned or scrap equipments"
+    },
+    "serviceTemplates": {
+      "schema": "ServiceTemplate",
+      "description": "Standard service catalog list"
+    },
+    "notifications": {
+      "schema": "PushNotification",
+      "description": "Recent system alerts"
+    }
+  }
+}

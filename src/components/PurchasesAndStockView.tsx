@@ -19,7 +19,8 @@ import {
   Briefcase,
   Sliders,
   Sparkles,
-  Info
+  Info,
+  CreditCard
 } from 'lucide-react';
 import { Supplier, Product, ProductPurchase, PurchaseItem } from '../types';
 import { formatBRL } from '../utils';
@@ -76,6 +77,8 @@ export default function PurchasesAndStockView({
   const [manSupId, setManSupId] = useState('');
   const [manDate, setManDate] = useState(new Date().toISOString().split('T')[0]);
   const [manItems, setManItems] = useState<PurchaseItem[]>([]);
+  const [manPaymentMethod, setManPaymentMethod] = useState<'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'boleto'>('pix');
+  const [manIsPaid, setManIsPaid] = useState<boolean>(true);
   // Item inputs for manual list
   const [manItemName, setManItemName] = useState('');
   const [manItemSku, setManItemSku] = useState('');
@@ -87,6 +90,8 @@ export default function PurchasesAndStockView({
   // XML Import states
   const [xmlContent, setXmlContent] = useState('');
   const [xmlFile, setXmlFile] = useState<File | null>(null);
+  const [xmlPaymentMethod, setXmlPaymentMethod] = useState<'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'boleto'>('pix');
+  const [xmlIsPaid, setXmlIsPaid] = useState<boolean>(true);
   const [xmlParsedData, setXmlParsedData] = useState<{
     invoiceNumber: string;
     purchaseDate: string;
@@ -229,7 +234,10 @@ export default function PurchasesAndStockView({
       supplierName: matchedSup.name,
       purchaseDate: manDate + 'T12:00:00Z',
       items: manItems,
-      totalAmount: total
+      totalAmount: total,
+      paymentMethod: manPaymentMethod,
+      isPaid: manIsPaid,
+      paymentDate: manIsPaid ? manDate : undefined
     };
 
     // 1. Add to purchases list
@@ -284,6 +292,8 @@ export default function PurchasesAndStockView({
     setManInvoice('');
     setManSupId('');
     setManItems([]);
+    setManPaymentMethod('pix');
+    setManIsPaid(true);
     setSubTab('stock');
     alert('Compra manual registrada com sucesso! Estoque atualizado.');
   };
@@ -563,7 +573,10 @@ export default function PurchasesAndStockView({
       purchaseDate: xmlParsedData.purchaseDate + 'T12:00:00Z',
       items: xmlParsedData.items,
       totalAmount: total,
-      xmlFileName: xmlFile?.name || 'NFe_importado.xml'
+      xmlFileName: xmlFile?.name || 'NFe_importado.xml',
+      paymentMethod: xmlPaymentMethod,
+      isPaid: xmlIsPaid,
+      paymentDate: xmlIsPaid ? xmlParsedData.purchaseDate : undefined
     };
 
     setPurchases(prev => [newPurchase, ...prev]);
@@ -614,6 +627,8 @@ export default function PurchasesAndStockView({
     setXmlFile(null);
     setXmlParsedData(null);
     setXmlContent('');
+    setXmlPaymentMethod('pix');
+    setXmlIsPaid(true);
     setSubTab('stock');
     alert('Nota Fiscal XML importada com sucesso! Estoque e precificação atualizados.');
   };
@@ -1164,6 +1179,55 @@ export default function PurchasesAndStockView({
                         </div>
                       </div>
 
+                      {/* Financial configuration for XML Import */}
+                      <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-3 shadow-xs">
+                        <h4 className="text-[11px] font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1 border-b border-indigo-50 pb-1.5">
+                          <CreditCard size={12} /> Configuração Financeira da Compra
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 mb-1">Status de Quitação:</label>
+                            <div className="flex gap-4 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                              <label className="flex items-center gap-1.5 font-bold text-[11px] text-slate-700 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="xmlIsPaid"
+                                  checked={xmlIsPaid === true}
+                                  onChange={() => setXmlIsPaid(true)}
+                                  className="text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <span>Pago (Ir p/ Fluxo de Caixa)</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 font-bold text-[11px] text-slate-700 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="xmlIsPaid"
+                                  checked={xmlIsPaid === false}
+                                  onChange={() => setXmlIsPaid(false)}
+                                  className="text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <span>A Pagar (Contas a Pagar)</span>
+                              </label>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 mb-1">Meio de Pagamento:</label>
+                            <select
+                              value={xmlPaymentMethod}
+                              onChange={(e) => setXmlPaymentMethod(e.target.value as any)}
+                              className="w-full border border-slate-200 rounded-lg p-2 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer font-semibold text-slate-700"
+                            >
+                              <option value="pix">PIX</option>
+                              <option value="cartao_credito">Cartão de Crédito</option>
+                              <option value="cartao_debito">Cartão de Débito</option>
+                              <option value="dinheiro">Dinheiro Espécie</option>
+                              <option value="boleto">Boleto Bancário</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Summary and Import Button */}
                       <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4">
                         <div>
@@ -1240,6 +1304,47 @@ export default function PurchasesAndStockView({
                         onChange={(e) => setManDate(e.target.value)}
                         className="mt-1 w-full border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 mb-1">Status de Quitação:</label>
+                      <div className="flex gap-4 mt-1 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                        <label className="flex items-center gap-1.5 font-bold text-[11px] text-slate-700 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="manIsPaid"
+                            checked={manIsPaid === true}
+                            onChange={() => setManIsPaid(true)}
+                            className="text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span>Pago (Ir p/ Fluxo de Caixa)</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 font-bold text-[11px] text-slate-700 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="manIsPaid"
+                            checked={manIsPaid === false}
+                            onChange={() => setManIsPaid(false)}
+                            className="text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span>A Pagar (Contas a Pagar)</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500">Meio de Pagamento:</label>
+                      <select
+                        value={manPaymentMethod}
+                        onChange={(e) => setManPaymentMethod(e.target.value as any)}
+                        className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      >
+                        <option value="pix">PIX</option>
+                        <option value="cartao_credito">Cartão de Crédito</option>
+                        <option value="cartao_debito">Cartão de Débito</option>
+                        <option value="dinheiro">Dinheiro Espécie</option>
+                        <option value="boleto">Boleto Bancário</option>
+                      </select>
                     </div>
                   </div>
                 </div>

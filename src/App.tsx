@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutDashboard, 
   Wrench, 
@@ -18,6 +18,10 @@ import {
   DollarSign,
   ShieldAlert
 } from 'lucide-react';
+
+// Import Firebase Setup
+import { db, auth, OperationType, handleFirestoreError } from './firebase';
+import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 // Import Types
 import { 
@@ -71,7 +75,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
   // Users State (Authentication)
-  const [users, setUsers] = useState<User[]>(() => {
+  const [users, setRawUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('eletroos_users');
     if (saved) return JSON.parse(saved);
     return [
@@ -103,47 +107,47 @@ export default function App() {
   });
 
   // Core Entity States (With LocalStorage Hydration)
-  const [orders, setOrders] = useState<ServiceOrder[]>(() => {
+  const [orders, setRawOrders] = useState<ServiceOrder[]>(() => {
     const saved = localStorage.getItem('eletroos_orders');
     return saved ? JSON.parse(saved) : mockServiceOrders;
   });
 
-  const [clients, setClients] = useState<Client[]>(() => {
+  const [clients, setRawClients] = useState<Client[]>(() => {
     const saved = localStorage.getItem('eletroos_clients');
     return saved ? JSON.parse(saved) : mockClients;
   });
 
-  const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>(() => {
+  const [bankTransactions, setRawBankTransactions] = useState<BankTransaction[]>(() => {
     const saved = localStorage.getItem('eletroos_transactions');
     return saved ? JSON.parse(saved) : mockBankTransactions;
   });
 
-  const [notifications, setNotifications] = useState<PushNotification[]>(() => {
+  const [notifications, setRawNotifications] = useState<PushNotification[]>(() => {
     const saved = localStorage.getItem('eletroos_notifications');
     return saved ? JSON.parse(saved) : mockNotifications;
   });
 
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
+  const [suppliers, setRawSuppliers] = useState<Supplier[]>(() => {
     const saved = localStorage.getItem('eletroos_suppliers');
     return saved ? JSON.parse(saved) : mockSuppliers;
   });
 
-  const [products, setProducts] = useState<Product[]>(() => {
+  const [products, setRawProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('eletroos_products');
     return saved ? JSON.parse(saved) : mockProducts;
   });
 
-  const [serviceTemplates, setServiceTemplates] = useState<ServiceTemplate[]>(() => {
+  const [serviceTemplates, setRawServiceTemplates] = useState<ServiceTemplate[]>(() => {
     const saved = localStorage.getItem('eletroos_services');
     return saved ? JSON.parse(saved) : mockServiceTemplates;
   });
 
-  const [purchases, setPurchases] = useState<ProductPurchase[]>(() => {
+  const [purchases, setRawPurchases] = useState<ProductPurchase[]>(() => {
     const saved = localStorage.getItem('eletroos_purchases');
     return saved ? JSON.parse(saved) : mockPurchases;
   });
 
-  const [manualAccounts, setManualAccounts] = useState<FinancialAccountItem[]>(() => {
+  const [manualAccounts, setRawManualAccounts] = useState<FinancialAccountItem[]>(() => {
     const saved = localStorage.getItem('eletroos_manual_accounts');
     if (saved) return JSON.parse(saved);
     return [
@@ -199,7 +203,7 @@ export default function App() {
     ];
   });
 
-  const [inserviceableAssets, setInserviceableAssets] = useState<InserviceableAsset[]>(() => {
+  const [inserviceableAssets, setRawInserviceableAssets] = useState<InserviceableAsset[]>(() => {
     const saved = localStorage.getItem('eletroos_inserviceable_assets');
     if (saved) return JSON.parse(saved);
     return [
@@ -223,7 +227,7 @@ export default function App() {
     ];
   });
 
-  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => {
+  const [companyProfile, setRawCompanyProfile] = useState<CompanyProfile>(() => {
     const saved = localStorage.getItem('eletroos_company_profile');
     if (saved) return JSON.parse(saved);
     return {
@@ -253,6 +257,195 @@ export default function App() {
       environment: 'homologacao'
     };
   });
+
+  // State Refs to prevent stale closures in Firebase sync
+  const ordersRef = useRef(orders);
+  const clientsRef = useRef(clients);
+  const bankTransactionsRef = useRef(bankTransactions);
+  const notificationsRef = useRef(notifications);
+  const suppliersRef = useRef(suppliers);
+  const productsRef = useRef(products);
+  const serviceTemplatesRef = useRef(serviceTemplates);
+  const purchasesRef = useRef(purchases);
+  const manualAccountsRef = useRef(manualAccounts);
+  const inserviceableAssetsRef = useRef(inserviceableAssets);
+  const companyProfileRef = useRef(companyProfile);
+  const usersRef = useRef(users);
+
+  useEffect(() => { ordersRef.current = orders; }, [orders]);
+  useEffect(() => { clientsRef.current = clients; }, [clients]);
+  useEffect(() => { bankTransactionsRef.current = bankTransactions; }, [bankTransactions]);
+  useEffect(() => { notificationsRef.current = notifications; }, [notifications]);
+  useEffect(() => { suppliersRef.current = suppliers; }, [suppliers]);
+  useEffect(() => { productsRef.current = products; }, [products]);
+  useEffect(() => { serviceTemplatesRef.current = serviceTemplates; }, [serviceTemplates]);
+  useEffect(() => { purchasesRef.current = purchases; }, [purchases]);
+  useEffect(() => { manualAccountsRef.current = manualAccounts; }, [manualAccounts]);
+  useEffect(() => { inserviceableAssetsRef.current = inserviceableAssets; }, [inserviceableAssets]);
+  useEffect(() => { companyProfileRef.current = companyProfile; }, [companyProfile]);
+  useEffect(() => { usersRef.current = users; }, [users]);
+
+  // Firebase Real-Time Synchronization Setter Generator
+  function createFirebaseSyncSetter<T extends { id: string }>(
+    collectionName: string,
+    localSetter: React.Dispatch<React.SetStateAction<T[]>>,
+    stateRef: React.MutableRefObject<T[]>,
+    localStorageKey: string
+  ) {
+    return (value: React.SetStateAction<T[]>) => {
+      const currentState = stateRef.current;
+      const newState = typeof value === 'function' 
+        ? (value as (prev: T[]) => T[])(currentState) 
+        : value;
+
+      // Update locally first
+      localStorage.setItem(localStorageKey, JSON.stringify(newState));
+      localSetter(newState);
+
+      // Write differential updates to Firebase if authenticated
+      if (auth.currentUser) {
+        const existingMap = new Map<string, T>(currentState.map(item => [item.id, item]));
+        const newMap = new Map<string, T>(newState.map(item => [item.id, item]));
+
+        newMap.forEach(async (newItem, id) => {
+          const existingItem = existingMap.get(id);
+          if (!existingItem || JSON.stringify(existingItem) !== JSON.stringify(newItem)) {
+            try {
+              await setDoc(doc(db, collectionName, id), newItem);
+            } catch (err) {
+              handleFirestoreError(err, OperationType.WRITE, `${collectionName}/${id}`);
+            }
+          }
+        });
+
+        existingMap.forEach(async (_, id) => {
+          if (!newMap.has(id)) {
+            try {
+              await deleteDoc(doc(db, collectionName, id));
+            } catch (err) {
+              handleFirestoreError(err, OperationType.DELETE, `${collectionName}/${id}`);
+            }
+          }
+        });
+      }
+    };
+  }
+
+  // Synced Wrapper Setters
+  const setOrders = createFirebaseSyncSetter('orders', setRawOrders, ordersRef, 'eletroos_orders');
+  const setClients = createFirebaseSyncSetter('clients', setRawClients, clientsRef, 'eletroos_clients');
+  const setBankTransactions = createFirebaseSyncSetter('bankTransactions', setRawBankTransactions, bankTransactionsRef, 'eletroos_transactions');
+  const setNotifications = createFirebaseSyncSetter('notifications', setRawNotifications, notificationsRef, 'eletroos_notifications');
+  const setSuppliers = createFirebaseSyncSetter('suppliers', setRawSuppliers, suppliersRef, 'eletroos_suppliers');
+  const setProducts = createFirebaseSyncSetter('products', setRawProducts, productsRef, 'eletroos_products');
+  const setServiceTemplates = createFirebaseSyncSetter('serviceTemplates', setRawServiceTemplates, serviceTemplatesRef, 'eletroos_services');
+  const setPurchases = createFirebaseSyncSetter('purchases', setRawPurchases, purchasesRef, 'eletroos_purchases');
+  const setManualAccounts = createFirebaseSyncSetter('manualAccounts', setRawManualAccounts, manualAccountsRef, 'eletroos_manual_accounts');
+  const setInserviceableAssets = createFirebaseSyncSetter('inserviceableAssets', setRawInserviceableAssets, inserviceableAssetsRef, 'eletroos_inserviceable_assets');
+  const setUsers = createFirebaseSyncSetter('users', setRawUsers, usersRef, 'eletroos_users');
+
+  const setCompanyProfile = async (value: React.SetStateAction<CompanyProfile>) => {
+    const currentState = companyProfileRef.current;
+    const newState = typeof value === 'function' ? (value as Function)(currentState) : value;
+    
+    localStorage.setItem('eletroos_company_profile', JSON.stringify(newState));
+    setRawCompanyProfile(newState);
+
+    if (auth.currentUser) {
+      try {
+        await setDoc(doc(db, 'companyProfile', 'default'), newState);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, 'companyProfile/default');
+      }
+    }
+  };
+
+  // Firebase Auth State Observer & Real-Time Sync Listeners
+  useEffect(() => {
+    const unsubscribeAuth = auth.onAuthStateChanged((firebaseUser) => {
+      if (firebaseUser) {
+        const unsubscribes = [
+          onSnapshot(collection(db, 'orders'), (snapshot) => {
+            const list: ServiceOrder[] = [];
+            snapshot.forEach((doc) => list.push(doc.data() as ServiceOrder));
+            setRawOrders(list);
+          }, (err) => handleFirestoreError(err, OperationType.LIST, 'orders')),
+
+          onSnapshot(collection(db, 'clients'), (snapshot) => {
+            const list: Client[] = [];
+            snapshot.forEach((doc) => list.push(doc.data() as Client));
+            setRawClients(list);
+          }, (err) => handleFirestoreError(err, OperationType.LIST, 'clients')),
+
+          onSnapshot(collection(db, 'bankTransactions'), (snapshot) => {
+            const list: BankTransaction[] = [];
+            snapshot.forEach((doc) => list.push(doc.data() as BankTransaction));
+            setRawBankTransactions(list);
+          }, (err) => handleFirestoreError(err, OperationType.LIST, 'bankTransactions')),
+
+          onSnapshot(collection(db, 'notifications'), (snapshot) => {
+            const list: PushNotification[] = [];
+            snapshot.forEach((doc) => list.push(doc.data() as PushNotification));
+            setRawNotifications(list);
+          }, (err) => handleFirestoreError(err, OperationType.LIST, 'notifications')),
+
+          onSnapshot(collection(db, 'suppliers'), (snapshot) => {
+            const list: Supplier[] = [];
+            snapshot.forEach((doc) => list.push(doc.data() as Supplier));
+            setRawSuppliers(list);
+          }, (err) => handleFirestoreError(err, OperationType.LIST, 'suppliers')),
+
+          onSnapshot(collection(db, 'products'), (snapshot) => {
+            const list: Product[] = [];
+            snapshot.forEach((doc) => list.push(doc.data() as Product));
+            setRawProducts(list);
+          }, (err) => handleFirestoreError(err, OperationType.LIST, 'products')),
+
+          onSnapshot(collection(db, 'serviceTemplates'), (snapshot) => {
+            const list: ServiceTemplate[] = [];
+            snapshot.forEach((doc) => list.push(doc.data() as ServiceTemplate));
+            setRawServiceTemplates(list);
+          }, (err) => handleFirestoreError(err, OperationType.LIST, 'serviceTemplates')),
+
+          onSnapshot(collection(db, 'purchases'), (snapshot) => {
+            const list: ProductPurchase[] = [];
+            snapshot.forEach((doc) => list.push(doc.data() as ProductPurchase));
+            setRawPurchases(list);
+          }, (err) => handleFirestoreError(err, OperationType.LIST, 'purchases')),
+
+          onSnapshot(collection(db, 'manualAccounts'), (snapshot) => {
+            const list: FinancialAccountItem[] = [];
+            snapshot.forEach((doc) => list.push(doc.data() as FinancialAccountItem));
+            setRawManualAccounts(list);
+          }, (err) => handleFirestoreError(err, OperationType.LIST, 'manualAccounts')),
+
+          onSnapshot(collection(db, 'inserviceableAssets'), (snapshot) => {
+            const list: InserviceableAsset[] = [];
+            snapshot.forEach((doc) => list.push(doc.data() as InserviceableAsset));
+            setRawInserviceableAssets(list);
+          }, (err) => handleFirestoreError(err, OperationType.LIST, 'inserviceableAssets')),
+
+          onSnapshot(collection(db, 'users'), (snapshot) => {
+            const list: User[] = [];
+            snapshot.forEach((doc) => list.push(doc.data() as User));
+            setRawUsers(list);
+          }, (err) => handleFirestoreError(err, OperationType.LIST, 'users')),
+
+          onSnapshot(doc(db, 'companyProfile', 'default'), (docSnap) => {
+            if (docSnap.exists()) {
+              setRawCompanyProfile(docSnap.data() as CompanyProfile);
+            }
+          }, (err) => handleFirestoreError(err, OperationType.GET, 'companyProfile/default'))
+        ];
+
+        return () => {
+          unsubscribes.forEach(unsub => unsub());
+        };
+      }
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
 
   // Selected sub-states
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -437,7 +630,12 @@ export default function App() {
   };
 
   // Log out session
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+    } catch (e) {
+      console.error("Erro ao sair do Firebase:", e);
+    }
     setCurrentUser(null);
   };
 
@@ -1145,6 +1343,7 @@ export default function App() {
               products={products}
               setProducts={setProducts}
               purchases={purchases}
+              setPurchases={setPurchases}
               onTriggerNotification={handleTriggerNotification}
               manualAccounts={manualAccounts}
               setManualAccounts={setManualAccounts}

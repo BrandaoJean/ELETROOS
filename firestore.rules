@@ -1,0 +1,212 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny gate
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE SECURITY PRIMITIVES ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(ownerId) {
+      return isSignedIn() && request.auth.uid == ownerId;
+    }
+
+    // Role-based Access Control via Database Lookups (Zero-Trust)
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function hasUserDocument(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function isRole(uid, role) {
+      return isSignedIn() && hasUserDocument(uid) && getUserData(uid).role == role;
+    }
+
+    function isAdmin() {
+      return isRole(request.auth.uid, 'administrador');
+    }
+
+    function isStaff() {
+      return isSignedIn() && hasUserDocument(request.auth.uid) && 
+        (getUserData(request.auth.uid).role == 'administrador' || 
+         getUserData(request.auth.uid).role == 'tecnico' || 
+         getUserData(request.auth.uid).role == 'atendente');
+    }
+
+    // --- VALIDATION BLUEPRINTS ---
+
+    function isValidUser(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.username is string && data.username.size() <= 100 &&
+             data.email is string && data.email.size() <= 200 &&
+             data.role in ['administrador', 'tecnico', 'atendente'] &&
+             data.companyCnpj is string && data.companyCnpj.size() <= 20;
+    }
+
+    function isValidCompanyProfile(data) {
+      return data.cnpj is string && data.cnpj.size() <= 20 &&
+             data.razaoSocial is string && data.razaoSocial.size() <= 255 &&
+             data.nomeFantasia is string && data.nomeFantasia.size() <= 255;
+    }
+
+    function isValidClient(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.phone is string && data.phone.size() <= 30 &&
+             data.email is string && data.email.size() <= 200 &&
+             data.cpf is string && data.cpf.size() <= 20;
+    }
+
+    function isValidServiceOrder(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.clientId is string && data.clientId.size() <= 128 &&
+             data.clientName is string && data.clientName.size() <= 200 &&
+             data.equipment is string && data.equipment.size() <= 200 &&
+             data.brand is string && data.brand.size() <= 100 &&
+             data.model is string && data.model.size() <= 100 &&
+             data.status in ['aguardando_orcamento', 'orcamento_aprovado', 'orcamento_rejeitado', 'em_reparo', 'pronto', 'entregue'] &&
+             data.totalCost is number && data.totalCost >= 0;
+    }
+
+    function isValidProduct(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.sku is string && data.sku.size() <= 100 &&
+             data.costPrice is number && data.costPrice >= 0 &&
+             data.sellingPrice is number && data.sellingPrice >= 0 &&
+             data.stock is number;
+    }
+
+    function isValidSupplier(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.cnpj is string && data.cnpj.size() <= 20;
+    }
+
+    function isValidPurchase(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.invoiceNumber is string && data.invoiceNumber.size() <= 100 &&
+             data.supplierId is string && data.supplierId.size() <= 128 &&
+             data.supplierName is string && data.supplierName.size() <= 200 &&
+             data.totalAmount is number && data.totalAmount >= 0;
+    }
+
+    function isValidPOSSale(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.clientName is string && data.clientName.size() <= 200 &&
+             data.total is number && data.total >= 0;
+    }
+
+    function isValidFinancialAccountItem(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.type in ['pagar', 'receber'] &&
+             data.description is string && data.description.size() <= 255 &&
+             data.category is string && data.category.size() <= 100 &&
+             data.amount is number && data.amount >= 0 &&
+             data.status in ['pendente', 'pago', 'atrasado'];
+    }
+
+    // --- COLLECTION RULE MATCHERS ---
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidUser(incoming()) && (userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && isValidUser(incoming()) && (
+        isAdmin() || 
+        (userId == request.auth.uid && incoming().role == existing().role && incoming().companyCnpj == existing().companyCnpj)
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /companyProfile/{profileId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidCompanyProfile(incoming());
+    }
+
+    match /clients/{clientId} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff() && isValidClient(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow read: if isSignedIn();
+      allow create: if isStaff() && isValidServiceOrder(incoming());
+      allow update: if isStaff() && isValidServiceOrder(incoming()) && (
+        isAdmin() || 
+        (existing().status != 'entregue' && existing().status != 'orcamento_rejeitado')
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff() && isValidProduct(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /suppliers/{supplierId} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff() && isValidSupplier(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /purchases/{purchaseId} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff() && isValidPurchase(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /posSales/{saleId} {
+      allow read: if isSignedIn();
+      allow create: if isStaff() && isValidPOSSale(incoming());
+      allow update: if isStaff() && isValidPOSSale(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /manualAccounts/{accountId} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff() && isValidFinancialAccountItem(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /inserviceableAssets/{assetId} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /serviceTemplates/{templateId} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
+    }
+  }
+}

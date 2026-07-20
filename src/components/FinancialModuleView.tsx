@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -37,8 +37,10 @@ import {
   Bar, 
   Legend 
 } from 'recharts';
-import { ServiceOrder, Client, Product, ProductPurchase, FinancialAccountItem, POSSale, POSSaleItem } from '../types';
+import { ServiceOrder, Client, Product, ProductPurchase, FinancialAccountItem, POSSale, POSSaleItem, PaymentItem } from '../types';
 import { formatBRL } from '../utils';
+import { db, auth, OperationType, handleFirestoreError } from '../firebase';
+import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 interface FinancialModuleViewProps {
   orders: ServiceOrder[];
@@ -48,6 +50,7 @@ interface FinancialModuleViewProps {
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   purchases: ProductPurchase[];
+  setPurchases: React.Dispatch<React.SetStateAction<ProductPurchase[]>>;
   onTriggerNotification: (type: 'billing' | 'payment_pending') => void;
   manualAccounts: FinancialAccountItem[];
   setManualAccounts: React.Dispatch<React.SetStateAction<FinancialAccountItem[]>>;
@@ -61,6 +64,7 @@ export default function FinancialModuleView({
   products,
   setProducts,
   purchases,
+  setPurchases,
   onTriggerNotification,
   manualAccounts,
   setManualAccounts
@@ -68,8 +72,8 @@ export default function FinancialModuleView({
   // Financial sub-tab navigation
   const [activeSubTab, setActiveSubTab] = useState<'flow' | 'receivable' | 'payable' | 'pos'>('flow');
 
-  // POS sales state (with localStorage persistence)
-  const [posSales, setPosSales] = useState<POSSale[]>(() => {
+  // POS sales state (with localStorage persistence and Firebase sync)
+  const [posSales, setRawPosSales] = useState<POSSale[]>(() => {
     const saved = localStorage.getItem('eletroos_pos_sales');
     if (saved) return JSON.parse(saved);
     return [
@@ -88,9 +92,65 @@ export default function FinancialModuleView({
     ];
   });
 
+  const posSalesRef = useRef(posSales);
   useEffect(() => {
+    posSalesRef.current = posSales;
     localStorage.setItem('eletroos_pos_sales', JSON.stringify(posSales));
   }, [posSales]);
+
+  // Firebase Real-Time Synced Setter for POS Sales
+  const setPosSales = (value: React.SetStateAction<POSSale[]>) => {
+    const currentState = posSalesRef.current;
+    const newState = typeof value === 'function' 
+      ? (value as (prev: POSSale[]) => POSSale[])(currentState) 
+      : value;
+
+    localStorage.setItem('eletroos_pos_sales', JSON.stringify(newState));
+    setRawPosSales(newState);
+
+    if (auth.currentUser) {
+      const existingMap = new Map<string, POSSale>(currentState.map(item => [item.id, item]));
+      const newMap = new Map<string, POSSale>(newState.map(item => [item.id, item]));
+
+      newMap.forEach(async (newItem, id) => {
+        const existingItem = existingMap.get(id);
+        if (!existingItem || JSON.stringify(existingItem) !== JSON.stringify(newItem)) {
+          try {
+            await setDoc(doc(db, 'posSales', id), newItem);
+          } catch (err) {
+            handleFirestoreError(err, OperationType.WRITE, `posSales/${id}`);
+          }
+        }
+      });
+
+      existingMap.forEach(async (_, id) => {
+        if (!newMap.has(id)) {
+          try {
+            await deleteDoc(doc(db, 'posSales', id));
+          } catch (err) {
+            handleFirestoreError(err, OperationType.DELETE, `posSales/${id}`);
+          }
+        }
+      });
+    }
+  };
+
+  // Firebase Real-time Listener for POS Sales
+  useEffect(() => {
+    const unsubscribeAuth = auth.onAuthStateChanged((firebaseUser) => {
+      if (firebaseUser) {
+        const unsubscribeSnapshot = onSnapshot(collection(db, 'posSales'), (snapshot) => {
+          const list: POSSale[] = [];
+          snapshot.forEach((doc) => list.push(doc.data() as POSSale));
+          setRawPosSales(list);
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'posSales'));
+
+        return () => unsubscribeSnapshot();
+      }
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
 
   // POS shopping cart state
   const [posCart, setPosCart] = useState<POSSaleItem[]>([]);
@@ -129,6 +189,8 @@ export default function FinancialModuleView({
   const [posIsInstallment, setPosIsInstallment] = useState(false);
   const [posInstallmentsCount, setPosInstallmentsCount] = useState<number>(3);
   const [posInterestRate, setPosInterestRate] = useState<number>(0);
+  const [posPayments, setPosPayments] = useState<PaymentItem[]>([]);
+  const [posPartialAmount, setPosPartialAmount] = useState<string>('');
 
   // Installment states for Carteira Própria in direct OS settlement
   const [osIsInstallment, setOsIsInstallment] = useState(false);
@@ -299,8 +361,53 @@ export default function FinancialModuleView({
       });
     });
 
+    // Add pending POS installments
+    posSales.forEach(sale => {
+      if (sale.payments && sale.payments.length > 0) {
+        sale.payments.forEach((p, pIdx) => {
+          if (p.method === 'carteira' && p.installmentsList) {
+            p.installmentsList.forEach((inst) => {
+              if (inst.status === 'pendente') {
+                const isPast = inst.dueDate ? new Date(inst.dueDate) < new Date(currentDateStr) : false;
+                list.push({
+                  id: `REC-POS-INST-${sale.id}-${pIdx}-${inst.number}`,
+                  type: 'receber',
+                  description: `Venda PDV ${sale.id} - Parc. ${inst.number}/${p.installmentsCount}`,
+                  category: 'PDV Parc.',
+                  amount: inst.amount,
+                  dueDate: inst.dueDate,
+                  status: isPast ? 'atrasado' : 'pendente',
+                  clientOrSupplierName: sale.clientName,
+                  originId: sale.id
+                });
+              }
+            });
+          }
+        });
+      } else {
+        if (sale.paymentMethod === 'carteira' && sale.installmentsList) {
+          sale.installmentsList.forEach((inst) => {
+            if (inst.status === 'pendente') {
+              const isPast = inst.dueDate ? new Date(inst.dueDate) < new Date(currentDateStr) : false;
+              list.push({
+                id: `REC-POS-LEGACY-INST-${sale.id}-${inst.number}`,
+                type: 'receber',
+                description: `Venda PDV ${sale.id} - Parc. ${inst.number}/${sale.installmentsCount}`,
+                category: 'PDV Parc.',
+                amount: inst.amount,
+                dueDate: inst.dueDate,
+                status: isPast ? 'atrasado' : 'pendente',
+                clientOrSupplierName: sale.clientName,
+                originId: sale.id
+              });
+            }
+          });
+        }
+      }
+    });
+
     return list;
-  }, [orders, manualAccounts]);
+  }, [orders, manualAccounts, posSales, currentDateStr]);
 
   // 2. DYNAMIC ACCOUNTS PAYABLE COMPILATION
   const dynamicPayables = useMemo(() => {
@@ -314,25 +421,27 @@ export default function FinancialModuleView({
       });
     });
 
-    // Integrate Product Purchases as payables (since we buy from suppliers, let's treat them as Fornecedor payables!)
+    // Integrate Product Purchases as payables
     purchases.forEach(p => {
-      // Assuming purchases are always recorded paid on their purchase date for cashflow, but represent supplier outflow
+      const isPast = p.purchaseDate ? new Date(p.purchaseDate) < new Date(currentDateStr) : false;
+      const status = p.isPaid ? 'pago' : (isPast ? 'atrasado' : 'pendente');
       list.push({
         id: `PAY-PUR-${p.id}`,
         type: 'pagar',
-        description: `Nota Fiscal Compra Peças Nº ${p.invoiceNumber}`,
+        description: `Nota Fiscal Compra Peças Nº ${p.invoiceNumber} (${p.xmlFileName ? 'XML' : 'Direta'})`,
         category: 'Fornecedor',
         amount: p.totalAmount,
-        dueDate: p.purchaseDate,
-        paymentDate: p.purchaseDate,
-        status: 'pago', // Pre-marked paid as it comes from inventory system purchase receipt
+        dueDate: p.purchaseDate ? p.purchaseDate.split('T')[0] : currentDateStr,
+        paymentDate: p.isPaid ? (p.paymentDate || p.purchaseDate.split('T')[0]) : undefined,
+        status: status as any,
         clientOrSupplierName: p.supplierName,
-        originId: p.id
+        originId: p.id,
+        paymentMethod: p.paymentMethod || 'pix'
       });
     });
 
     return list;
-  }, [manualAccounts, purchases]);
+  }, [manualAccounts, purchases, currentDateStr]);
 
   // 3. CASH FLOW LEDGER LIST (ALL COMPLETED PAID INFLOWS & OUTFLOWS)
   const cashFlowLedger = useMemo(() => {
@@ -385,19 +494,76 @@ export default function FinancialModuleView({
       }
     });
 
-    // C. POS sales (instantly paid)
+    // C. POS sales (payments actually processed)
     posSales.forEach(sale => {
-      list.push({
-        id: `CF-POS-${sale.id}`,
-        type: 'entrada',
-        description: `Venda PDV Balcão - Código: ${sale.id}`,
-        category: 'PDV',
-        amount: sale.total,
-        date: sale.timestamp.split('T')[0],
-        paymentMethod: sale.paymentMethod,
-        originId: sale.id,
-        entityName: sale.clientName
-      });
+      if (sale.payments && sale.payments.length > 0) {
+        sale.payments.forEach((p, pIdx) => {
+          if (p.method === 'carteira' && p.installmentsList) {
+            // Include paid installments
+            p.installmentsList.forEach(inst => {
+              if (inst.status === 'pago') {
+                list.push({
+                  id: `CF-POS-INST-${sale.id}-${pIdx}-${inst.number}`,
+                  type: 'entrada',
+                  description: `Parc. Recebida ${inst.number}/${p.installmentsCount} - Venda PDV ${sale.id}`,
+                  category: 'PDV Parc.',
+                  amount: inst.amount,
+                  date: inst.dueDate,
+                  paymentMethod: 'carteira',
+                  originId: sale.id,
+                  entityName: sale.clientName
+                });
+              }
+            });
+          } else if (p.method !== 'carteira') {
+            // Direct split payment (immediate cash entry)
+            list.push({
+              id: `CF-POS-SPLIT-${sale.id}-${pIdx}`,
+              type: 'entrada',
+              description: `Venda PDV Balcão - Código: ${sale.id} (${p.method.toUpperCase()})`,
+              category: 'PDV',
+              amount: p.amount,
+              date: sale.timestamp.split('T')[0],
+              paymentMethod: p.method,
+              originId: sale.id,
+              entityName: sale.clientName
+            });
+          }
+        });
+      } else {
+        // Fallback to legacy single payment
+        if (sale.paymentMethod === 'carteira' && sale.installmentsList) {
+          // Include paid installments
+          sale.installmentsList.forEach(inst => {
+            if (inst.status === 'pago') {
+              list.push({
+                id: `CF-POS-LEGACY-INST-${sale.id}-${inst.number}`,
+                type: 'entrada',
+                description: `Parc. Recebida ${inst.number}/${sale.installmentsCount} - Venda PDV ${sale.id}`,
+                category: 'PDV Parc.',
+                amount: inst.amount,
+                date: inst.dueDate,
+                paymentMethod: 'carteira',
+                originId: sale.id,
+                entityName: sale.clientName
+              });
+            }
+          });
+        } else if (sale.paymentMethod !== 'carteira') {
+          // Immediate direct payment
+          list.push({
+            id: `CF-POS-${sale.id}`,
+            type: 'entrada',
+            description: `Venda PDV Balcão - Código: ${sale.id}`,
+            category: 'PDV',
+            amount: sale.total,
+            date: sale.timestamp.split('T')[0],
+            paymentMethod: sale.paymentMethod,
+            originId: sale.id,
+            entityName: sale.clientName
+          });
+        }
+      }
     });
 
     // D. Manual Payables marked 'pago'
@@ -417,19 +583,21 @@ export default function FinancialModuleView({
       }
     });
 
-    // E. Product Purchases (Supplier cash outflows)
+    // E. Product Purchases (Supplier cash outflows, only if paid!)
     purchases.forEach(p => {
-      list.push({
-        id: `CF-PUR-${p.id}`,
-        type: 'saida',
-        description: `Aquisição de Componentes - NF ${p.invoiceNumber}`,
-        category: 'Fornecedor',
-        amount: p.totalAmount,
-        date: p.purchaseDate,
-        paymentMethod: 'pix', // Standard assumption
-        originId: p.id,
-        entityName: p.supplierName
-      });
+      if (p.isPaid) {
+        list.push({
+          id: `CF-PUR-${p.id}`,
+          type: 'saida',
+          description: `Aquisição de Componentes - NF ${p.invoiceNumber}`,
+          category: 'Fornecedor',
+          amount: p.totalAmount,
+          date: (p.paymentDate || p.purchaseDate).split('T')[0],
+          paymentMethod: p.paymentMethod || 'pix',
+          originId: p.id,
+          entityName: p.supplierName
+        });
+      }
     });
 
     // Sort by date descending, then id descending
@@ -577,20 +745,37 @@ export default function FinancialModuleView({
     }
   };
 
-  // Settle manual bills (mark paid)
+  // Settle manual bills or purchases (mark paid)
   const handlePayAccount = (id: string, method: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira') => {
-    setManualAccounts(prev => prev.map(acc => {
-      if (acc.id === id) {
-        return {
-          ...acc,
-          status: 'pago',
-          paymentDate: currentDateStr,
-          paymentMethod: method
-        };
-      }
-      return acc;
-    }));
-    alert('Lançamento baixado com sucesso como PAGO!');
+    if (id.startsWith('PAY-PUR-')) {
+      const purId = id.replace('PAY-PUR-', '');
+      setPurchases(prev => prev.map(p => {
+        if (p.id === purId) {
+          return {
+            ...p,
+            isPaid: true,
+            paymentDate: currentDateStr,
+            paymentMethod: method,
+            sentToFinancial: true
+          };
+        }
+        return p;
+      }));
+      alert('Compra de fornecedor baixada e quitada com sucesso!');
+    } else {
+      setManualAccounts(prev => prev.map(acc => {
+        if (acc.id === id) {
+          return {
+            ...acc,
+            status: 'pago',
+            paymentDate: currentDateStr,
+            paymentMethod: method
+          };
+        }
+        return acc;
+      }));
+      alert('Lançamento baixado com sucesso como PAGO!');
+    }
   };
 
   // Settle OS Payment directly from accounts receivable
@@ -641,6 +826,49 @@ export default function FinancialModuleView({
     }));
 
     alert(`OS ${orderId} liquidada com sucesso via ${method.toUpperCase()}!`);
+  };
+
+  // Settle individual POS sale installment directly from accounts receivable
+  const handlePayPOSInstallment = (saleId: string, paymentIndex: number | undefined, installmentNumber: number, method: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira') => {
+    setPosSales(prev => prev.map(sale => {
+      if (sale.id === saleId) {
+        if (paymentIndex !== undefined && sale.payments) {
+          const updatedPayments = [...sale.payments];
+          const targetPay = updatedPayments[paymentIndex];
+          if (targetPay.installmentsList) {
+            const updatedInst = targetPay.installmentsList.map(inst => {
+              if (inst.number === installmentNumber) {
+                return { ...inst, status: 'pago' as const };
+              }
+              return inst;
+            });
+            updatedPayments[paymentIndex] = {
+              ...targetPay,
+              installmentsList: updatedInst
+            };
+            return {
+              ...sale,
+              payments: updatedPayments
+            };
+          }
+        } else {
+          if (sale.installmentsList) {
+            const updatedInst = sale.installmentsList.map(inst => {
+              if (inst.number === installmentNumber) {
+                return { ...inst, status: 'pago' as const };
+              }
+              return inst;
+            });
+            return {
+              ...sale,
+              installmentsList: updatedInst
+            };
+          }
+        }
+      }
+      return sale;
+    }));
+    alert(`Parcela ${installmentNumber} da venda ${saleId} quitada com sucesso via ${method.toUpperCase()}!`);
   };
 
 
@@ -749,19 +977,18 @@ export default function FinancialModuleView({
     return parseFloat((posSubtotal - calculatedDiscount).toFixed(2));
   }, [posSubtotal, calculatedDiscount]);
 
-  const posGeneratedInstallments = useMemo(() => {
+  // Helper to generate installments for a given amount
+  const generateInstallmentsForAmount = (amount: number, count: number, rate: number, firstDate: string) => {
     const list: { number: number; dueDate: string; amount: number }[] = [];
-    const amount = posTotal;
-    if (amount <= 0 || !posIsInstallment) return list;
+    if (amount <= 0 || count <= 0) return list;
     
-    // Apply editable interest rate
-    const totalWithInterest = amount * (1 + (posInterestRate / 100));
-    const partAmount = parseFloat((totalWithInterest / posInstallmentsCount).toFixed(2));
-    const [year, month, day] = firstInstallmentDate.split('-').map(Number);
+    const totalWithInterest = amount * (1 + (rate / 100));
+    const partAmount = parseFloat((totalWithInterest / count).toFixed(2));
+    const [year, month, day] = firstDate.split('-').map(Number);
     
     let sumPaid = 0;
-    for (let i = 0; i < posInstallmentsCount; i++) {
-      const isLast = i === posInstallmentsCount - 1;
+    for (let i = 0; i < count; i++) {
+      const isLast = i === count - 1;
       const installmentAmount = isLast ? parseFloat((totalWithInterest - sumPaid).toFixed(2)) : partAmount;
       sumPaid += installmentAmount;
 
@@ -779,7 +1006,74 @@ export default function FinancialModuleView({
       });
     }
     return list;
-  }, [posTotal, posIsInstallment, posInstallmentsCount, firstInstallmentDate, posInterestRate]);
+  };
+
+  const posGeneratedInstallments = useMemo(() => {
+    const amtStr = posPartialAmount || posTotal.toString();
+    const amt = parseFloat(amtStr) || 0;
+    return generateInstallmentsForAmount(amt, posInstallmentsCount, posInterestRate, firstInstallmentDate);
+  }, [posPartialAmount, posTotal, posInstallmentsCount, firstInstallmentDate, posInterestRate]);
+
+  // Handler: Add partial POS payment method to list
+  const handleAddPOSPayment = () => {
+    const amt = parseFloat(posPartialAmount) || 0;
+    if (amt <= 0) {
+      alert('Por favor, informe um valor de pagamento válido.');
+      return;
+    }
+
+    const addedTotal = posPayments.reduce((sum, p) => sum + p.amount, 0);
+    const remaining = parseFloat((posTotal - addedTotal).toFixed(2));
+    if (amt > remaining) {
+      alert(`O valor informado (${formatBRL(amt)}) é maior que o saldo restante de ${formatBRL(remaining)}!`);
+      return;
+    }
+
+    // Wallet limit check if payment is Carteira Própria
+    if (posPaymentMethod === 'carteira') {
+      if (selectedPosClient === 'consumidor_final') {
+        alert('Venda para Consumidor Final não aceita Carteira Própria como meio. Selecione um cliente cadastrado!');
+        return;
+      }
+      
+      const client = clients.find(c => c.id === selectedPosClient);
+      const paymentTotal = posIsInstallment ? amt * (1 + (posInterestRate / 100)) : amt;
+      if (client && client.walletBalance < paymentTotal) {
+        const confirmDebit = confirm(`O cliente possui apenas ${formatBRL(client.walletBalance)} na carteira.\nDeseja autorizar este pagamento de ${formatBRL(paymentTotal)} gerando um débito de ${formatBRL(client.walletBalance - paymentTotal)} na ficha dele?`);
+        if (!confirmDebit) return;
+      }
+    }
+
+    const generatedInstallments = posIsInstallment 
+      ? posGeneratedInstallments 
+      : [];
+
+    const newPayment: PaymentItem = {
+      method: posPaymentMethod,
+      amount: amt,
+      timestamp: new Date().toISOString(),
+      ...(posPaymentMethod === 'carteira' && posIsInstallment ? {
+        installmentsCount: posInstallmentsCount,
+        interestRate: posInterestRate,
+        firstInstallmentDueDate: firstInstallmentDate,
+        installmentsList: generatedInstallments.map(inst => ({
+          number: inst.number,
+          dueDate: inst.dueDate,
+          amount: inst.amount,
+          status: 'pendente' as const
+        }))
+      } : {})
+    };
+
+    setPosPayments(prev => [...prev, newPayment]);
+    setPosPartialAmount('');
+    setPosIsInstallment(false);
+    setPosInterestRate(0);
+  };
+
+  const handleRemovePOSPayment = (idx: number) => {
+    setPosPayments(prev => prev.filter((_, i) => i !== idx));
+  };
 
   // Complete POS Sale Flow
   const handleCheckoutPOS = () => {
@@ -788,26 +1082,73 @@ export default function FinancialModuleView({
       return;
     }
 
-    const finalTotal = (posPaymentMethod === 'carteira' && posIsInstallment)
-      ? parseFloat((posTotal * (1 + (posInterestRate / 100))).toFixed(2))
-      : posTotal;
+    const clientName = activePOSClientObj ? activePOSClientObj.name : 'Consumidor Final';
+    const newSaleId = `POS-${1000 + posSales.length + 1}`;
 
-    // Process Wallet limit checkout
-    if (posPaymentMethod === 'carteira' && selectedPosClient !== 'consumidor_final') {
-      const client = clients.find(c => c.id === selectedPosClient);
-      if (client && client.walletBalance < finalTotal) {
-        const confirmDebit = confirm(`O cliente possui apenas ${formatBRL(client.walletBalance)} na carteira.\nDeseja autorizar venda faturada gerando débito de ${formatBRL(client.walletBalance - finalTotal)} na ficha?`);
-        if (!confirmDebit) return;
-        
-        // Deduct from wallet (allow debit/negative balance)
-        setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - finalTotal } : c));
-      } else if (client) {
-        // Direct debit
-        setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - finalTotal } : c));
+    let finalPayments: PaymentItem[] = [];
+
+    if (posPayments.length === 0) {
+      // Fallback single-payment mode
+      const finalTotal = (posPaymentMethod === 'carteira' && posIsInstallment)
+        ? parseFloat((posTotal * (1 + (posInterestRate / 100))).toFixed(2))
+        : posTotal;
+
+      // Wallet limit check
+      if (posPaymentMethod === 'carteira') {
+        if (selectedPosClient === 'consumidor_final') {
+          alert('Venda para Consumidor Final não aceita Carteira Própria como meio. Selecione um cliente cadastrado!');
+          return;
+        }
+        const client = clients.find(c => c.id === selectedPosClient);
+        if (client && client.walletBalance < finalTotal) {
+          const confirmDebit = confirm(`O cliente possui apenas ${formatBRL(client.walletBalance)} na carteira.\nDeseja autorizar venda faturada gerando débito de ${formatBRL(client.walletBalance - finalTotal)} na ficha?`);
+          if (!confirmDebit) return;
+          
+          setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - finalTotal } : c));
+        } else if (client) {
+          setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - finalTotal } : c));
+        }
       }
-    } else if (posPaymentMethod === 'carteira' && selectedPosClient === 'consumidor_final') {
-      alert('Venda para Consumidor Final não aceita Carteira Própria como meio. Selecione um cliente cadastrado!');
-      return;
+
+      const legacyPayment: PaymentItem = {
+        method: posPaymentMethod,
+        amount: posTotal,
+        timestamp: new Date().toISOString(),
+        ...(posPaymentMethod === 'carteira' && posIsInstallment ? {
+          installmentsCount: posInstallmentsCount,
+          interestRate: posInterestRate,
+          firstInstallmentDueDate: firstInstallmentDate,
+          installmentsList: posGeneratedInstallments.map(inst => ({
+            number: inst.number,
+            dueDate: inst.dueDate,
+            amount: inst.amount,
+            status: 'pendente' as const
+          }))
+        } : {})
+      };
+      finalPayments = [legacyPayment];
+    } else {
+      // Split payments mode
+      const addedTotal = posPayments.reduce((sum, p) => sum + p.amount, 0);
+      if (Math.abs(addedTotal - posTotal) > 0.01) {
+        alert(`O total dos pagamentos adicionados (${formatBRL(addedTotal)}) difere do total da venda (${formatBRL(posTotal)})!`);
+        return;
+      }
+
+      // Deduct from wallet for any carteira payments added
+      posPayments.forEach(p => {
+        if (p.method === 'carteira' && selectedPosClient !== 'consumidor_final') {
+          const client = clients.find(c => c.id === selectedPosClient);
+          const paymentAmount = p.installmentsList 
+            ? p.installmentsList.reduce((sum, inst) => sum + inst.amount, 0) 
+            : p.amount;
+          if (client) {
+            setClients(prev => prev.map(c => c.id === client.id ? { ...c, walletBalance: c.walletBalance - paymentAmount } : c));
+          }
+        }
+      });
+
+      finalPayments = posPayments;
     }
 
     // 1. Deduct items from products stock
@@ -823,8 +1164,6 @@ export default function FinancialModuleView({
     }));
 
     // 2. Register POS Sale Record
-    const clientName = activePOSClientObj ? activePOSClientObj.name : 'Consumidor Final';
-    const newSaleId = `POS-${1000 + posSales.length + 1}`;
     const newSale: POSSale = {
       id: newSaleId,
       clientId: selectedPosClient === 'consumidor_final' ? undefined : selectedPosClient,
@@ -832,20 +1171,10 @@ export default function FinancialModuleView({
       items: posCart,
       subtotal: posSubtotal,
       discount: calculatedDiscount,
-      total: finalTotal,
-      paymentMethod: posPaymentMethod,
-      timestamp: new Date().toISOString(),
-      ...(posPaymentMethod === 'carteira' && posIsInstallment ? {
-        installmentsCount: posInstallmentsCount,
-        interestRate: posInterestRate,
-        firstInstallmentDueDate: firstInstallmentDate,
-        installmentsList: posGeneratedInstallments.map(inst => ({
-          number: inst.number,
-          dueDate: inst.dueDate,
-          amount: inst.amount,
-          status: 'pendente' as const
-        }))
-      } : {})
+      total: posTotal,
+      paymentMethod: finalPayments.length === 1 ? finalPayments[0].method : 'pix',
+      payments: finalPayments,
+      timestamp: new Date().toISOString()
     };
 
     setPosSales(prev => [newSale, ...prev]);
@@ -853,11 +1182,13 @@ export default function FinancialModuleView({
     // Clear cart and triggers receipt modal
     setActiveReceiptSale(newSale);
     setPosCart([]);
+    setPosPayments([]);
     setPosDiscount('0');
     setSelectedPosClient('consumidor_final');
     setPosClientSearch('');
     setPosIsInstallment(false);
     setPosInterestRate(0);
+    setPosPartialAmount('');
     
     alert(`Venda ${newSaleId} registrada e estoque atualizado!`);
   };
@@ -1216,6 +1547,17 @@ export default function FinancialModuleView({
                                   onClick={() => {
                                     if (item.id.startsWith('REC-OS-') && item.originId) {
                                       handlePayOSReceivable(item.originId, 'pix');
+                                    } else if (item.id.startsWith('REC-POS-INST-')) {
+                                      const parts = item.id.split('-');
+                                      const saleId = parts[3] + '-' + parts[4];
+                                      const pIdx = parseInt(parts[5], 10);
+                                      const instNum = parseInt(parts[6], 10);
+                                      handlePayPOSInstallment(saleId, pIdx, instNum, 'pix');
+                                    } else if (item.id.startsWith('REC-POS-LEGACY-INST-')) {
+                                      const parts = item.id.split('-');
+                                      const saleId = parts[4] + '-' + parts[5];
+                                      const instNum = parseInt(parts[6], 10);
+                                      handlePayPOSInstallment(saleId, undefined, instNum, 'pix');
                                     } else {
                                       handlePayAccount(item.id, 'pix');
                                     }
@@ -1232,6 +1574,17 @@ export default function FinancialModuleView({
                                       const casted = method as any;
                                       if (item.id.startsWith('REC-OS-') && item.originId) {
                                         handlePayOSReceivable(item.originId, casted);
+                                      } else if (item.id.startsWith('REC-POS-INST-')) {
+                                        const parts = item.id.split('-');
+                                        const saleId = parts[3] + '-' + parts[4];
+                                        const pIdx = parseInt(parts[5], 10);
+                                        const instNum = parseInt(parts[6], 10);
+                                        handlePayPOSInstallment(saleId, pIdx, instNum, casted);
+                                      } else if (item.id.startsWith('REC-POS-LEGACY-INST-')) {
+                                        const parts = item.id.split('-');
+                                        const saleId = parts[4] + '-' + parts[5];
+                                        const instNum = parseInt(parts[6], 10);
+                                        handlePayPOSInstallment(saleId, undefined, instNum, casted);
                                       } else {
                                         handlePayAccount(item.id, casted);
                                       }

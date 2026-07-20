@@ -20,7 +20,7 @@ export interface PartItem {
 }
 
 export interface PaymentItem {
-  method: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira';
+  method: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira' | 'boleto';
   amount: number;
   timestamp: string;
   installmentsCount?: number;
@@ -141,6 +141,10 @@ export interface ProductPurchase {
   items: PurchaseItem[];
   totalAmount: number;
   xmlFileName?: string;
+  paymentMethod?: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'boleto';
+  isPaid?: boolean;
+  paymentDate?: string;
+  sentToFinancial?: boolean;
 }
 
 export interface FinancialAccountItem {
@@ -152,7 +156,7 @@ export interface FinancialAccountItem {
   dueDate: string;
   paymentDate?: string;
   status: 'pendente' | 'pago' | 'atrasado';
-  paymentMethod?: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira';
+  paymentMethod?: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira' | 'boleto';
   clientOrSupplierName?: string;
   originId?: string; // OS-1001, purchase ID, POS ID, etc.
 }
@@ -174,12 +178,13 @@ export interface POSSale {
   subtotal: number;
   discount: number;
   total: number;
-  paymentMethod: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira';
+  paymentMethod: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'carteira' | 'boleto';
   timestamp: string;
   installmentsCount?: number;
   interestRate?: number;
   firstInstallmentDueDate?: string;
   installmentsList?: { number: number; dueDate: string; amount: number; status: 'pendente' | 'pago' }[];
+  payments?: PaymentItem[];
 }
 
 export interface InserviceableAsset {
